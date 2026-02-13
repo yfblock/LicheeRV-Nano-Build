@@ -112,6 +112,7 @@ int gc4653_read_register(VI_PIPE ViPipe, int addr)
 
 int gc4653_write_register(VI_PIPE ViPipe, int addr, int data)
 {
+  // printf("gc4653 write %lx -> reg %lx\n", data, addr);
 	CVI_U8 idx = 0;
 	int ret;
 	CVI_U8 buf[8];
@@ -167,11 +168,29 @@ void gc4653_default_reg_init(VI_PIPE ViPipe)
 {
 	CVI_U32 i;
 
-	for (i = 0; i < g_pastGc4653[ViPipe]->astSyncInfo[0].snsCfg.u32RegNum; i++) {
-		gc4653_write_register(ViPipe,
-				g_pastGc4653[ViPipe]->astSyncInfo[0].snsCfg.astI2cData[i].u32RegAddr,
-				g_pastGc4653[ViPipe]->astSyncInfo[0].snsCfg.astI2cData[i].u32Data);
-	}
+	// for (i = 0; i < g_pastGc4653[ViPipe]->astSyncInfo[0].snsCfg.u32RegNum; i++) {
+	//    printf("gc4653_write_register(0x%lX, 0x%lX);\n", g_pastGc4653[ViPipe]->astSyncInfo[0].snsCfg.astI2cData[i].u32RegAddr,
+	//          g_pastGc4653[ViPipe]->astSyncInfo[0].snsCfg.astI2cData[i].u32Data);
+	// 	gc4653_write_register(ViPipe,
+	// 			g_pastGc4653[ViPipe]->astSyncInfo[0].snsCfg.astI2cData[i].u32RegAddr,
+	// 			g_pastGc4653[ViPipe]->astSyncInfo[0].snsCfg.astI2cData[i].u32Data);
+	// }
+    gc4653_write_register(ViPipe, 0x202, 0x0);
+    gc4653_write_register(ViPipe, 0x203, 0x5D);
+    gc4653_write_register(ViPipe, 0x2B3, 0x0);
+    gc4653_write_register(ViPipe, 0x2B4, 0x0);
+    gc4653_write_register(ViPipe, 0x2B8, 0x1);
+    gc4653_write_register(ViPipe, 0x2B9, 0x0);
+    gc4653_write_register(ViPipe, 0x515, 0x30);
+    gc4653_write_register(ViPipe, 0x519, 0x1E);
+    gc4653_write_register(ViPipe, 0x2D9, 0x5C);
+    gc4653_write_register(ViPipe, 0x20E, 0x1);
+    gc4653_write_register(ViPipe, 0x20F, 0x0);
+    gc4653_write_register(ViPipe, 0x340, 0x7);
+    gc4653_write_register(ViPipe, 0x341, 0x8);
+    gc4653_write_register(ViPipe, 0x31D, 0x2D);
+    gc4653_write_register(ViPipe, 0x101, 0x0);
+    gc4653_write_register(ViPipe, 0x31D, 0x28);
 }
 
 int gc4653_probe(VI_PIPE ViPipe)
@@ -183,6 +202,8 @@ int gc4653_probe(VI_PIPE ViPipe)
 	if (gc4653_i2c_init(ViPipe) != CVI_SUCCESS)
 		return CVI_FAILURE;
 
+  CVI_TRACE_SNS(CVI_DBG_ERR, "gc4653_probe\n");
+  printf("GC4653 probe\n");
 	nVal  = gc4653_read_register(ViPipe, GC4653_CHIP_ID_ADDR_H);
 	nVal2 = gc4653_read_register(ViPipe, GC4653_CHIP_ID_ADDR_L);
 	if (nVal < 0 || nVal2 < 0) {

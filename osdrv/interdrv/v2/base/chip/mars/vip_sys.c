@@ -49,6 +49,7 @@ union vip_sys_reset vip_get_reset(void)
 {
 	union vip_sys_reset reset;
 
+  pr_info("-------- vip get reset: %lx =======\n", reg_base);
 	reset.raw = _reg_read(reg_base + VIP_SYS_VIP_RESETS);
 	return reset;
 }

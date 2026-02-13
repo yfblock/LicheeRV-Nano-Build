@@ -889,6 +889,7 @@ static CVI_S32 sensor_register_callback(VI_PIPE ViPipe, ALG_LIB_S *pstAeLib, ALG
 
 	stSnsAttrInfo.eSensorId = GC4653_ID;
 
+  printf("==============SENSOR CALLBACK\n");
 	s32Ret  = cmos_init_sensor_exp_function(&stIspRegister.stSnsExp);
 	s32Ret |= CVI_ISP_SensorRegCallBack(ViPipe, &stSnsAttrInfo, &stIspRegister);
 
@@ -972,16 +973,16 @@ ISP_SNS_OBJ_S stSnsGc4653_Obj = {
 	.pfnUnRegisterCallback  = sensor_unregister_callback,
 	.pfnStandby             = gc4653_standby,
 	.pfnRestart             = gc4653_restart,
-	.pfnWriteReg            = gc4653_write_register,
-	.pfnReadReg             = gc4653_read_register,
+	// .pfnWriteReg            = gc4653_write_register,
+	// .pfnReadReg             = gc4653_read_register,
 	.pfnSetBusInfo          = gc4653_set_bus_info,
 	.pfnSetInit             = sensor_set_init,
-	.pfnMirrorFlip          = sensor_mirror_flip,
+	// .pfnMirrorFlip          = sensor_mirror_flip,
 	.pfnPatchRxAttr         = sensor_patch_rx_attr,
 	.pfnPatchI2cAddr        = sensor_patch_i2c_addr,
 	.pfnGetRxAttr           = sensor_rx_attr,
 	.pfnExpSensorCb         = cmos_init_sensor_exp_function,
-	.pfnExpAeCb             = cmos_init_ae_exp_function,
+	// .pfnExpAeCb             = cmos_init_ae_exp_function,
 	.pfnSnsProbe            = sensor_probe,
 };
 

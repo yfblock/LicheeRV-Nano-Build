@@ -1,3 +1,4 @@
+#include "linux/printk.h"
 #include <vip/vi_drv.h>
 #include <vip_common.h>
 
@@ -372,6 +373,7 @@ void isp_streaming(struct isp_ctx *ctx, uint32_t on, enum cvi_isp_raw raw_num)
 		sw_ctrl_0.bits.SHAW_UP_POST	= 1;
 		sw_ctrl_1.bits.PQ_UP_POST	= 1;
 
+    pr_info("isptopb %lx\n", isptopb);
 		ISP_WR_REG(isptopb, REG_ISP_TOP_T, SW_CTRL_1, sw_ctrl_1.raw);
 		ISP_WR_REG(isptopb, REG_ISP_TOP_T, SW_CTRL_0, sw_ctrl_0.raw);
 
@@ -1085,6 +1087,7 @@ void ispblk_dma_enable(struct isp_ctx *ctx, uint32_t dmaid, uint32_t on, uint8_t
 void ispblk_crop_enable(struct isp_ctx *ctx, int crop_id, bool en)
 {
 	uintptr_t cropb = ctx->phys_regs[crop_id];
+  pr_info("crop b: %lx\n", cropb);
 
 	ISP_WR_BITS(cropb, REG_CROP_T, REG_0, CROP_ENABLE, en);
 }

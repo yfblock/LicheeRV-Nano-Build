@@ -97,7 +97,8 @@ export CROSS_COMPILE=$(patsubst "%",%,$(CONFIG_CROSS_COMPILE_KERNEL))
 export ARCH=$(patsubst "%",%,$(CONFIG_ARCH))
 
 .PHONY : prepare clean all
-all: prepare $(KO_LIST) $(OTHERS)
+# all: prepare $(KO_LIST) $(OTHERS)
+all: prepare cif vi
 
 prepare:
 	@mkdir -p $(INSTALL_DIR)/3rd

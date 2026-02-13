@@ -81,9 +81,18 @@ static const char *const MOD_STRING[] = FOREACH_MOD(_GENERATE_STRING);
 	do {                                                   \
 		CVI_S32 LogLevel = (log_levels == NULL) ? CONFIG_CVI_LOG_TRACE_LEVEL : log_levels[enModId];      \
 		if (level <= LogLevel)	       \
-			syslog(LOG_LOCAL5|level, "[%s-%s] " fmt, CVI_GET_MOD_NAME(enModId), log_name[level],    \
-				##__VA_ARGS__);           \
+        printf("[%s-%s] " fmt "\n", \
+           CVI_GET_MOD_NAME(enModId), \
+           log_name[level], \
+           ##__VA_ARGS__); \
 	} while (0)
+	// #define CVI_TRACE(level, enModId, fmt, ...)            \
+	// do {                                                   \
+	// 	CVI_S32 LogLevel = (log_levels == NULL) ? CONFIG_CVI_LOG_TRACE_LEVEL : log_levels[enModId];      \
+	// 	if (level <= LogLevel)	       \
+	// 		syslog(LOG_LOCAL5|level, "[%s-%s] " fmt, CVI_GET_MOD_NAME(enModId), log_name[level],    \
+	// 			##__VA_ARGS__);           \
+	// } while (0)
 #else
 	#define CVI_TRACE(level, enModId, fmt, ...) \
 		printf(fmt, ##__VA_ARGS__)

@@ -41,7 +41,8 @@ static int sys_vi_init(void)
 	SAMPLE_PRT("MMF Version:%s\n", stVersion.version);
 
 	log_conf.enModId = CVI_ID_LOG;
-	log_conf.s32Level = CVI_DBG_INFO;
+	// log_conf.s32Level = CVI_DBG_INFO;
+	log_conf.s32Level = CVI_DBG_DEBUG;
 	CVI_LOG_SetLevelConf(&log_conf);
 
 	// Get config from ini if found.
@@ -234,10 +235,12 @@ static CVI_S32 sensor_dump_yuv(void)
 	struct timespec start, end;
 
 	CVI_TRACE_LOG(CVI_DBG_WARN, "Get frm from which chn(0~1): ");
-	scanf("%d", &tmp);
+	// scanf("%d", &tmp);
+  tmp = 0;
 	chn = tmp;
 	CVI_TRACE_LOG(CVI_DBG_WARN, "how many loops to do(11111 is infinite: ");
-	scanf("%d", &loop);
+	// scanf("%d", &loop);
+  loop = 1;
 	while (loop > 0) {
 		clock_gettime(CLOCK_MONOTONIC, &start);
 		if (_vi_get_chn_frame(chn) == CVI_SUCCESS) {
@@ -527,55 +530,67 @@ int main(int argc, char **argv)
 		return s32Ret;
 
 #ifdef ENABLE_ISP_TOOL_DAEMON
-	isp_daemon2_init(JSONRPC_PORT);
+	// isp_daemon2_init(JSONRPC_PORT);
 #endif
 
 	usleep(500 * 1000);
 
 	system("stty erase ^H");
 
-	do {
-		SAMPLE_PRT("---Basic------------------------------------------------\n");
-		SAMPLE_PRT("1: dump vi raw frame\n");
-		SAMPLE_PRT("2: dump vi yuv frame\n");
-		SAMPLE_PRT("3: set chn flip/mirror\n");
-		SAMPLE_PRT("4: linear wdr switch\n");
-		SAMPLE_PRT("5: AE debug\n");
-		SAMPLE_PRT("6: sensor dump\n");
-		SAMPLE_PRT("7: sensor proc\n");
-		SAMPLE_PRT("255: exit\n");
-		scanf("%d", &op);
-
-		switch (op) {
-		case 1:
-			s32Ret = sensor_dump_raw();
-			break;
-		case 2:
-			s32Ret = sensor_dump_yuv();
-			break;
-		case 3:
-			s32Ret = sensor_flip_mirror();
-			break;
-		case 4:
-			s32Ret = sensor_linear_wdr_switch();
-			break;
-		case 5:
-			s32Ret = sensor_ae_test();
-			break;
-		case 6:
-			s32Ret = sensor_dump();
-			break;
-		case 7:
-			s32Ret = sensor_proc();
-			break;
-		default:
-			break;
-		}
-		if (s32Ret != CVI_SUCCESS) {
-			CVI_TRACE_LOG(CVI_DBG_ERR, "op(%d) failed with %#x!\n", op, s32Ret);
-			break;
-		}
-	} while (op != 255);
+	usleep(1 * 1000 * 1000);
+  // sensor_dump_yuv();
+  // _vi_get_chn_frame(0);
+  int chn = 0;
+	VIDEO_FRAME_INFO_S stVideoFrame;
+	VI_CROP_INFO_S crop_info = {0};
+  CVI_S32 ret = CVI_VI_GetChnFrame(0, chn, &stVideoFrame, 3000);
+  if(ret == 0) {
+    printf("Get Chn Frame Done \n");
+    // CVI_VI_GetChnCrop(0, chn, &crop_info);
+    CVI_VI_ReleaseChnFrame(0, chn, &stVideoFrame);
+  }
+	// do {
+	// 	SAMPLE_PRT("---Basic------------------------------------------------\n");
+	// 	SAMPLE_PRT("1: dump vi raw frame\n");
+	// 	SAMPLE_PRT("2: dump vi yuv frame\n");
+	// 	SAMPLE_PRT("3: set chn flip/mirror\n");
+	// 	SAMPLE_PRT("4: linear wdr switch\n");
+	// 	SAMPLE_PRT("5: AE debug\n");
+	// 	SAMPLE_PRT("6: sensor dump\n");
+	// 	SAMPLE_PRT("7: sensor proc\n");
+	// 	SAMPLE_PRT("255: exit\n");
+	// 	scanf("%d", &op);
+	//
+	// 	switch (op) {
+	// 	case 1:
+	// 		s32Ret = sensor_dump_raw();
+	// 		break;
+	// 	case 2:
+	// 		s32Ret = sensor_dump_yuv();
+	// 		break;
+	// 	case 3:
+	// 		s32Ret = sensor_flip_mirror();
+	// 		break;
+	// 	case 4:
+	// 		s32Ret = sensor_linear_wdr_switch();
+	// 		break;
+	// 	case 5:
+	// 		s32Ret = sensor_ae_test();
+	// 		break;
+	// 	case 6:
+	// 		s32Ret = sensor_dump();
+	// 		break;
+	// 	case 7:
+	// 		s32Ret = sensor_proc();
+	// 		break;
+	// 	default:
+	// 		break;
+	// 	}
+	// 	if (s32Ret != CVI_SUCCESS) {
+	// 		CVI_TRACE_LOG(CVI_DBG_ERR, "op(%d) failed with %#x!\n", op, s32Ret);
+	// 		break;
+	// 	}
+	// } while (op != 255);
 
 #ifdef ENABLE_ISP_TOOL_DAEMON
 	isp_daemon2_uninit();

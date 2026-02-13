@@ -36,16 +36,8 @@
 #include <cif_cb.h>
 
 #define MIPI_IF
-#define DVP_IF
-#define BT601_IF
-#define BT656_IF
 
 #ifdef  __SOC_MARS__
-#define SUBLVDS_IF
-#define HISPI_IF
-#define BT1120_IF
-#define CUSTOM0_IF
-#define BT_DEMUX_IF
 #endif
 
 #ifndef DEVICE_FROM_DTS
@@ -97,11 +89,6 @@ const struct sync_code_s default_sync_code = {
 	.n1_bk_sav = 0x6B0,
 	.n1_bk_eav = 0x760,
 };
-
-static struct cvi_link *ctx_to_link(const struct cif_ctx *ctx)
-{
-	return container_of(ctx, struct cvi_link, cif_ctx);
-}
 
 static struct cvi_cif_dev *file_cif_dev(struct file *file)
 {
@@ -245,56 +232,6 @@ const char *_to_string_wdr_mode(enum wdr_mode_e wdr)
 	}
 }
 
-const char *_to_string_lvds_sync_mode(enum lvds_sync_mode_e mode)
-{
-	switch (mode) {
-	case LVDS_SYNC_MODE_SOF:
-		return "SOF";
-	case LVDS_SYNC_MODE_SAV:
-		return "SAV";
-	default:
-		return "unknown";
-	}
-}
-
-const char *_to_string_bit_endian(enum lvds_bit_endian endian)
-{
-	switch (endian) {
-	case LVDS_ENDIAN_LITTLE:
-		return "LITTLE";
-	case LVDS_ENDIAN_BIG:
-		return "BIG";
-	default:
-		return "unknown";
-	}
-}
-
-const char *_to_string_lvds_vsync_type(enum lvds_vsync_type_e type)
-{
-	switch (type) {
-	case LVDS_VSYNC_NORMAL:
-		return "NORMAL";
-	case LVDS_VSYNC_SHARE:
-		return "SHARE";
-	case LVDS_VSYNC_HCONNECT:
-		return "HCONNECT";
-	default:
-		return "unknown";
-	}
-}
-
-const char *_to_string_lvds_fid_type(enum lvds_fid_type_e type)
-{
-	switch (type) {
-	case LVDS_FID_NONE:
-		return "FID_NONE";
-	case LVDS_FID_IN_SAV:
-		return "FID_IN_SAV";
-	default:
-		return "unknown";
-	}
-}
-
 const char *_to_string_mclk(enum cam_pll_freq_e freq)
 {
 	switch (freq) {
@@ -387,6 +324,8 @@ static void cif_dump_dev_attr(struct cvi_cif_dev *dev,
 	case INPUT_MODE_MIPI: {
 		struct mipi_dev_attr_s *mipi = &attr->mipi_attr;
 
+		pr_info("raw_data_type = %s\n",
+			_to_string_raw_data_type(mipi->raw_data_type));
 		dev_dbg(_dev, "raw_data_type = %s\n",
 			_to_string_raw_data_type(mipi->raw_data_type));
 
@@ -403,51 +342,6 @@ static void cif_dump_dev_attr(struct cvi_cif_dev *dev,
 		}
 	}
 	break;
-	case INPUT_MODE_SUBLVDS:
-	case INPUT_MODE_HISPI: {
-		struct lvds_dev_attr_s *lvds = &attr->lvds_attr;
-		int j;
-
-		dev_dbg(_dev, "wdr_mode = %s\n",
-			_to_string_wdr_mode(lvds->wdr_mode));
-		dev_dbg(_dev, "sync_mode = %s\n",
-			_to_string_lvds_sync_mode(lvds->sync_mode));
-		dev_dbg(_dev, "raw_data_type = %s\n",
-			_to_string_raw_data_type(lvds->raw_data_type));
-		dev_dbg(_dev, "data_endian = %s\n",
-			_to_string_bit_endian(lvds->data_endian));
-		dev_dbg(_dev, "sync_code_endian = %s\n",
-			_to_string_bit_endian(lvds->sync_code_endian));
-		for (i = 0; i < MIPI_LANE_NUM + 1; i++) {
-			dev_dbg(_dev, "lane_id[%d] = %d, pn_swap = %s ", i,
-				lvds->lane_id[i],
-				lvds->pn_swap[i] ? "True" : "False");
-		}
-		dev_dbg(_dev, "sync code = {\n");
-		for (i = 0; i < MIPI_LANE_NUM; i++) {
-			dev_dbg(_dev, "\t{\n");
-			for (j = 0; j < WDR_VC_NUM+1; j++) {
-				dev_dbg(_dev,
-					"\t\t{ %3x, %3x, %3x, %3x },\n",
-					lvds->sync_code[i][j][0],
-					lvds->sync_code[i][j][1],
-					lvds->sync_code[i][j][2],
-					lvds->sync_code[i][j][3]);
-			}
-			dev_dbg(_dev, "\t},\n");
-		}
-		dev_dbg(_dev, "}\n");
-		dev_dbg(_dev, "vsync_type = %s\n",
-			_to_string_lvds_vsync_type(lvds->vsync_type.sync_type));
-		dev_dbg(_dev, "fid = %s\n",
-			_to_string_lvds_fid_type(lvds->fid_type.fid));
-
-	}
-	break;
-	case INPUT_MODE_CMOS:
-		break;
-	case INPUT_MODE_BT1120:
-		break;
 	default:
 		break;
 	}
@@ -638,1055 +532,6 @@ static int _cif_set_attr_mipi(struct cvi_cif_dev *dev,
 }
 #endif //MIPI_IF
 
-#ifdef SUBLVDS_IF
-static int _cif_set_lvds_vsync_type(struct cif_ctx *ctx,
-				    struct lvds_dev_attr_s *attr,
-				    struct param_sublvds *sublvds)
-{
-	struct combo_dev_attr_s *combo =
-		container_of(attr, struct combo_dev_attr_s, lvds_attr);
-	struct lvds_vsync_type_s *type = &attr->vsync_type;
-	struct cvi_link *link = ctx_to_link(ctx);
-
-	switch (type->sync_type) {
-	case LVDS_VSYNC_NORMAL:
-		sublvds->hdr_mode = CIF_SLVDS_HDR_PAT1;
-		/* [TODO] use other api to set the fp */
-		link->distance_fp = 15;
-		cif_set_lvds_vsync_gen(ctx, 15);
-		break;
-	case LVDS_VSYNC_HCONNECT:
-		sublvds->hdr_mode = CIF_SLVDS_HDR_PAT2;
-		/* [TODO] use other api to set the fp */
-		link->distance_fp = 1;
-		cif_set_lvds_vsync_gen(ctx, 1);
-		sublvds->hdr_hblank[0] = type->hblank1;
-		sublvds->hdr_hblank[1] = type->hblank2;
-		sublvds->h_size = combo->img_size.width;
-		/* [TODO] use other api to strip the info line*/
-		/* strip the top info line. */
-		cif_crop_info_line(ctx, 1, 1);
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-static int _cif_set_attr_sublvds(struct cvi_cif_dev *dev,
-				 struct cif_ctx *ctx,
-				 struct lvds_dev_attr_s *attr)
-{
-	struct cif_param *param = ctx->cur_config;
-	struct cvi_link *link = ctx_to_link(ctx);
-	struct param_sublvds *sublvds = &param->cfg.sublvds;
-	uint8_t tbl = 0x1F;
-	struct sublvds_sync_code *sc;
-	int i, j = 0, clk_port = 0;
-	int rc = 0;
-	uint32_t value;
-
-	param->type = CIF_TYPE_SUBLVDS;
-	/* config the bit mode. */
-	switch (attr->raw_data_type) {
-	case RAW_DATA_8BIT:
-		sublvds->fmt = CIF_SLVDS_8_BIT;
-		break;
-	case RAW_DATA_10BIT:
-		sublvds->fmt = CIF_SLVDS_10_BIT;
-		break;
-	case RAW_DATA_12BIT:
-		sublvds->fmt = CIF_SLVDS_12_BIT;
-		break;
-	default:
-		return -EINVAL;
-	}
-	/* config the endian. */
-	if (attr->data_endian == LVDS_ENDIAN_BIG &&
-	    attr->sync_code_endian == LVDS_ENDIAN_BIG) {
-		sublvds->endian = CIF_SLVDS_ENDIAN_MSB;
-		sublvds->wrap_endian = CIF_SLVDS_ENDIAN_MSB;
-
-	} else if (attr->data_endian == LVDS_ENDIAN_LITTLE &&
-		   attr->sync_code_endian == LVDS_ENDIAN_BIG) {
-		sublvds->endian = CIF_SLVDS_ENDIAN_LSB;
-		sublvds->wrap_endian = CIF_SLVDS_ENDIAN_MSB;
-
-	} else if (attr->data_endian == LVDS_ENDIAN_BIG &&
-		   attr->sync_code_endian == LVDS_ENDIAN_LITTLE) {
-		sublvds->endian = CIF_SLVDS_ENDIAN_LSB;
-		sublvds->wrap_endian = CIF_SLVDS_ENDIAN_LSB;
-	} else {
-		sublvds->endian = CIF_SLVDS_ENDIAN_MSB;
-		sublvds->wrap_endian = CIF_SLVDS_ENDIAN_LSB;
-	}
-	/* check the sync mode. */
-	if (attr->sync_mode != LVDS_SYNC_MODE_SAV)
-		return -EINVAL;
-	/* config the lane id*/
-	for (i = 0; i < CIF_LANE_NUM; i++) {
-		if (attr->lane_id[i] < 0)
-			continue;
-		if (attr->lane_id[i] >= CIF_PHY_LANE_NUM)
-			return -EINVAL;
-		if (!i)
-			clk_port = LANE_IS_PORT1(attr->lane_id[i]);
-		else {
-			if (LANE_IS_PORT1(attr->lane_id[i]) != clk_port)
-				clk_port = -1;
-		}
-		cif_set_lane_id(ctx, i, attr->lane_id[i], attr->pn_swap[i]);
-		/* clear pad ctrl pu/pd */
-		if (dev->pad_ctrl) {
-			value = ioread32(dev->pad_ctrl + PSD_CTRL_OFFSET(attr->lane_id[i]));
-			value &= ~(PAD_CTRL_PU | PAD_CTRL_PD);
-			iowrite32(value, dev->pad_ctrl + PSD_CTRL_OFFSET(attr->lane_id[i]));
-			value = ioread32(dev->pad_ctrl + PSD_CTRL_OFFSET(attr->lane_id[i]) + 4);
-			value &= ~(PAD_CTRL_PU | PAD_CTRL_PD);
-			iowrite32(value, dev->pad_ctrl + PSD_CTRL_OFFSET(attr->lane_id[i]) + 4);
-		}
-		tbl &= ~(1<<attr->lane_id[i]);
-		j++;
-	}
-	sublvds->lane_num = j - 1;
-	while (ffs(tbl)) {
-		uint32_t idx = ffs(tbl) - 1;
-
-		cif_set_lane_id(ctx, j++, idx, 0);
-		tbl &= ~(1 << idx);
-	}
-	/* config  clock buffer direction.
-	 * 1. When clock is between 0~2 and 1c4d, direction is P0->P1.
-	 * 2. When clock is between 3~5 and 1c4d, direction is P1->P0.
-	 * 3. When clock and data is between 0~2 and 1c2d, direction bit is freerun.
-	 * 4. When clock is between 0~2 but data is not, direction is P0->P1.
-	 * 5. When clock and data is between 3~5 and 1c2d and mac1 is used, direction bit is freerun.
-	 * 6. When clock is between 3~5 but data is not, direction is P1->P0.
-	 */
-	if (sublvds->lane_num == 4) {
-		if (LANE_IS_PORT1(attr->lane_id[0]))
-			cif_set_clk_dir(ctx, CIF_CLK_P12P0);
-		else
-			cif_set_clk_dir(ctx, CIF_CLK_P02P1);
-		for (i = 0; (i < sublvds->lane_num + 1); i++) {
-			if (!i)
-				cif_set_lane_deskew(ctx, attr->lane_id[i],
-						lane_phase[LANE_SKEW_CROSS_CLK]);
-			else if (IS_SAME_PORT(attr->lane_id[0], attr->lane_id[i]))
-				cif_set_lane_deskew(ctx, attr->lane_id[i],
-						lane_phase[LANE_SKEW_CROSS_DATA_NEAR]);
-			else
-				cif_set_lane_deskew(ctx, attr->lane_id[i],
-						lane_phase[LANE_SKEW_CROSS_DATA_FAR]);
-		}
-	} else if (sublvds->lane_num > 0) {
-		if (ctx->mac_num || !clk_port) {
-			cif_set_clk_dir(ctx, CIF_CLK_FREERUN);
-		} else {
-			if (LANE_IS_PORT1(attr->lane_id[0]))
-				cif_set_clk_dir(ctx, CIF_CLK_P12P0);
-			else
-				cif_set_clk_dir(ctx, CIF_CLK_P02P1);
-		}
-		/* if clk and data are in the same port.*/
-		if (clk_port > 0) {
-			for (i = 0; i < (sublvds->lane_num + 1); i++) {
-				if (!i)
-					cif_set_lane_deskew(ctx, attr->lane_id[i],
-							lane_phase[LANE_SKEW_CLK]);
-				else
-					cif_set_lane_deskew(ctx, attr->lane_id[i],
-							lane_phase[LANE_SKEW_DATA]);
-			}
-		} else {
-			for (i = 0; i < (sublvds->lane_num + 1); i++) {
-				if (!i)
-					cif_set_lane_deskew(ctx, attr->lane_id[i],
-							lane_phase[LANE_SKEW_CROSS_CLK]);
-				else if (IS_SAME_PORT(attr->lane_id[0], attr->lane_id[i]))
-					cif_set_lane_deskew(ctx, attr->lane_id[i],
-							lane_phase[LANE_SKEW_CROSS_DATA_NEAR]);
-				else
-					cif_set_lane_deskew(ctx, attr->lane_id[i],
-							lane_phase[LANE_SKEW_CROSS_DATA_FAR]);
-			}
-		}
-	} else
-		return -EINVAL;
-
-	/* config the sync code */
-	memcpy(&sublvds->sync_code, &default_sync_code,
-	       sizeof(default_sync_code));
-	sc = &sublvds->sync_code.slvds;
-	sc->n0_lef_sav = attr->sync_code[0][0][0];
-	sc->n0_lef_eav = attr->sync_code[0][0][1];
-	sc->n1_lef_sav = attr->sync_code[0][0][2];
-	sc->n1_lef_eav = attr->sync_code[0][0][3];
-	sc->n0_sef_sav = attr->sync_code[0][1][0];
-	sc->n0_sef_eav = attr->sync_code[0][1][1];
-	sc->n1_sef_sav = attr->sync_code[0][1][2];
-	sc->n1_sef_eav = attr->sync_code[0][1][3];
-	sc->n0_lsef_sav = attr->sync_code[0][2][0];
-	sc->n0_lsef_eav = attr->sync_code[0][2][1];
-	sc->n1_lsef_sav = attr->sync_code[0][2][2];
-	sc->n1_lsef_eav = attr->sync_code[0][2][3];
-
-	/* config the wdr */
-	switch (attr->wdr_mode) {
-	case CVI_WDR_MODE_NONE:
-		/* [TODO] use other api to set the fp */
-		link->distance_fp = 6;
-		cif_set_lvds_vsync_gen(ctx, 6);
-		break;
-	case CVI_WDR_MODE_DOL_2F:
-	case CVI_WDR_MODE_DOL_3F:
-		/* [TODO] 3 exposure hdr hw is not ready. */
-		/* config th Vsync type */
-		rc = _cif_set_lvds_vsync_type(ctx, attr, sublvds);
-		if (rc < 0)
-			return rc;
-		break;
-	default:
-		return -EINVAL;
-	}
-	param->hdr_en = (attr->wdr_mode != CVI_WDR_MODE_NONE);
-	/* [TODO] config the fid type. */
-	cif_streaming(ctx, 1, attr->wdr_mode != CVI_WDR_MODE_NONE);
-
-	return 0;
-}
-#endif // SUBLVDS_IF
-
-#ifdef HISPI_IF
-static int _cif_set_hispi_vsync_type(struct cif_ctx *ctx,
-				     struct lvds_dev_attr_s *attr,
-				     struct cif_param *param)
-{
-	struct combo_dev_attr_s *combo =
-		container_of(attr, struct combo_dev_attr_s, lvds_attr);
-	struct lvds_vsync_type_s *type = &attr->vsync_type;
-
-	switch (type->sync_type) {
-	case LVDS_VSYNC_NORMAL:
-		break;
-	case LVDS_VSYNC_SHARE:
-		param->hdr_manual = combo->wdr_manu.manual_en;
-		param->hdr_shift = combo->wdr_manu.l2s_distance;
-		param->hdr_vsize = combo->wdr_manu.lsef_length;
-		param->hdr_rm_padding = combo->wdr_manu.discard_padding_lines;
-		cif_hdr_manual_config(ctx, param, !!combo->wdr_manu.update);
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-static int _cif_set_attr_hispi(struct cvi_cif_dev *dev,
-			       struct cif_ctx *ctx,
-			       struct lvds_dev_attr_s *attr)
-{
-	struct combo_dev_attr_s *combo =
-		container_of(attr, struct combo_dev_attr_s, lvds_attr);
-	struct cif_param *param = ctx->cur_config;
-	struct param_hispi *hispi = &param->cfg.hispi;
-	uint8_t tbl = 0x1F;
-	struct hispi_sync_code *sc;
-	int i, j = 0, clk_port = 0;
-	int rc = 0;
-	uint32_t value;
-
-	param->type = CIF_TYPE_HISPI;
-	/* config the bit mode. */
-	switch (attr->raw_data_type) {
-	case RAW_DATA_8BIT:
-		hispi->fmt = CIF_SLVDS_8_BIT;
-		break;
-	case RAW_DATA_10BIT:
-		hispi->fmt = CIF_SLVDS_10_BIT;
-		break;
-	case RAW_DATA_12BIT:
-		hispi->fmt = CIF_SLVDS_12_BIT;
-		break;
-	default:
-		return -EINVAL;
-	}
-	/* config the endian. */
-	if (attr->data_endian == LVDS_ENDIAN_BIG &&
-	    attr->sync_code_endian == LVDS_ENDIAN_BIG) {
-		hispi->endian = CIF_SLVDS_ENDIAN_MSB;
-		hispi->wrap_endian = CIF_SLVDS_ENDIAN_MSB;
-	} else if (attr->data_endian == LVDS_ENDIAN_LITTLE &&
-		   attr->sync_code_endian == LVDS_ENDIAN_BIG) {
-		hispi->endian = CIF_SLVDS_ENDIAN_LSB;
-		hispi->wrap_endian = CIF_SLVDS_ENDIAN_MSB;
-	} else if (attr->data_endian == LVDS_ENDIAN_BIG &&
-		   attr->sync_code_endian == LVDS_ENDIAN_LITTLE) {
-		hispi->endian = CIF_SLVDS_ENDIAN_LSB;
-		hispi->wrap_endian = CIF_SLVDS_ENDIAN_LSB;
-	} else {
-		hispi->endian = CIF_SLVDS_ENDIAN_MSB;
-		hispi->wrap_endian = CIF_SLVDS_ENDIAN_LSB;
-	}
-	/* check the sync mode. */
-	if (attr->sync_mode == LVDS_SYNC_MODE_SOF) {
-		hispi->mode = CIF_HISPI_MODE_PKT_SP;
-	} else if (attr->sync_mode == LVDS_SYNC_MODE_SAV) {
-		hispi->mode = CIF_HISPI_MODE_STREAM_SP;
-		hispi->h_size = combo->img_size.width;
-	} else {
-		return -EINVAL;
-	}
-	/* config the lane id*/
-	for (i = 0; i < CIF_LANE_NUM; i++) {
-		if (attr->lane_id[i] < 0)
-			continue;
-		if (attr->lane_id[i] >= CIF_PHY_LANE_NUM)
-			return -EINVAL;
-		if (!i)
-			clk_port = LANE_IS_PORT1(attr->lane_id[i]);
-		else {
-			if (LANE_IS_PORT1(attr->lane_id[i]) != clk_port)
-				clk_port = -1;
-		}
-		cif_set_lane_id(ctx, i, attr->lane_id[i], attr->pn_swap[i]);
-		/* clear pad ctrl pu/pd */
-		if (dev->pad_ctrl) {
-			value = ioread32(dev->pad_ctrl + PSD_CTRL_OFFSET(attr->lane_id[i]));
-			value &= ~(PAD_CTRL_PU | PAD_CTRL_PD);
-			iowrite32(value, dev->pad_ctrl + PSD_CTRL_OFFSET(attr->lane_id[i]));
-			value = ioread32(dev->pad_ctrl + PSD_CTRL_OFFSET(attr->lane_id[i]) + 4);
-			value &= ~(PAD_CTRL_PU | PAD_CTRL_PD);
-			iowrite32(value, dev->pad_ctrl + PSD_CTRL_OFFSET(attr->lane_id[i]) + 4);
-		}
-		tbl &= ~(1<<attr->lane_id[i]);
-		j++;
-	}
-	hispi->lane_num = j - 1;
-	while (ffs(tbl)) {
-		uint32_t idx = ffs(tbl) - 1;
-
-		cif_set_lane_id(ctx, j++, idx, 0);
-		tbl &= ~(1 << idx);
-	}
-	/* config  clock buffer direction.
-	 * 1. When clock is between 0~2 and 1c4d, direction is P0->P1.
-	 * 2. When clock is between 3~5 and 1c4d, direction is P1->P0.
-	 * 3. When clock and data is between 0~2 and 1c2d, direction bit is freerun.
-	 * 4. When clock is between 0~2 but data is not, direction is P0->P1.
-	 * 5. When clock and data is between 3~5 and 1c2d and mac1 is used, direction bit is freerun.
-	 * 6. When clock is between 3~5 but data is not, direction is P1->P0.
-	 */
-	if (hispi->lane_num == 4) {
-		if (LANE_IS_PORT1(attr->lane_id[0]))
-			cif_set_clk_dir(ctx, CIF_CLK_P12P0);
-		else
-			cif_set_clk_dir(ctx, CIF_CLK_P02P1);
-		for (i = 0; (i < hispi->lane_num + 1); i++) {
-			if (!i)
-				cif_set_lane_deskew(ctx, attr->lane_id[i],
-						lane_phase[LANE_SKEW_CROSS_CLK]);
-			else if (IS_SAME_PORT(attr->lane_id[0], attr->lane_id[i]))
-				cif_set_lane_deskew(ctx, attr->lane_id[i],
-						lane_phase[LANE_SKEW_CROSS_DATA_NEAR]);
-			else
-				cif_set_lane_deskew(ctx, attr->lane_id[i],
-						lane_phase[LANE_SKEW_CROSS_DATA_FAR]);
-		}
-	} else if (hispi->lane_num > 0) {
-		if (ctx->mac_num || !clk_port) {
-			cif_set_clk_dir(ctx, CIF_CLK_FREERUN);
-		} else {
-			if (LANE_IS_PORT1(attr->lane_id[0]))
-				cif_set_clk_dir(ctx, CIF_CLK_P12P0);
-			else
-				cif_set_clk_dir(ctx, CIF_CLK_P02P1);
-		}
-		/* if clk and data are in the same port.*/
-		if (clk_port > 0) {
-			for (i = 0; i < (hispi->lane_num + 1); i++) {
-				if (!i)
-					cif_set_lane_deskew(ctx, attr->lane_id[i],
-							lane_phase[LANE_SKEW_CLK]);
-				else
-					cif_set_lane_deskew(ctx, attr->lane_id[i],
-							lane_phase[LANE_SKEW_DATA]);
-			}
-		} else {
-			for (i = 0; i < (hispi->lane_num + 1); i++) {
-				if (!i)
-					cif_set_lane_deskew(ctx, attr->lane_id[i],
-							lane_phase[LANE_SKEW_CROSS_CLK]);
-				else if (IS_SAME_PORT(attr->lane_id[0], attr->lane_id[i]))
-					cif_set_lane_deskew(ctx, attr->lane_id[i],
-							lane_phase[LANE_SKEW_CROSS_DATA_NEAR]);
-				else
-					cif_set_lane_deskew(ctx, attr->lane_id[i],
-							lane_phase[LANE_SKEW_CROSS_DATA_FAR]);
-			}
-		}
-	} else
-		return -EINVAL;
-
-	/* config the sync code */
-	memcpy(&hispi->sync_code, &default_sync_code,
-	       sizeof(default_sync_code));
-	sc = &hispi->sync_code.hispi;
-	sc->t1_sol = attr->sync_code[0][0][0];
-	sc->t1_eol = attr->sync_code[0][0][1];
-	sc->t1_sof = attr->sync_code[0][0][2];
-	sc->t1_eof = attr->sync_code[0][0][3];
-	sc->t2_sol = attr->sync_code[0][1][0];
-	sc->t2_eol = attr->sync_code[0][1][1];
-	sc->t2_sof = attr->sync_code[0][1][2];
-	sc->t2_eof = attr->sync_code[0][1][3];
-	sc->vsync_gen = sc->t1_sof;
-
-	/* config the wdr */
-	switch (attr->wdr_mode) {
-	case CVI_WDR_MODE_NONE:
-	case CVI_WDR_MODE_2F:
-	case CVI_WDR_MODE_3F: /* [TODO] 3 exposure hdr hw is not ready. */
-		break;
-	default:
-		return -EINVAL;
-	}
-	/* config th Vsync type */
-	rc = _cif_set_hispi_vsync_type(ctx, attr, param);
-	if (rc < 0)
-		return rc;
-
-	param->hdr_en = (attr->wdr_mode != CVI_WDR_MODE_NONE);
-	/* [TODO] config the fid type. */
-	cif_streaming(ctx, 1, attr->wdr_mode != CVI_WDR_MODE_NONE);
-
-	return 0;
-}
-#endif // HISPI_IF
-
-#ifdef DVP_IF
-#define MAX_PAD_NUM	19
-struct vi_pin_info {
-	uint32_t	addr;
-	uint32_t	offset;
-	uint32_t	mask;
-	uint32_t	func;
-};
-
-const struct vi_pin_info vi_pin[TTL_VI_SRC_NUM][MAX_PAD_NUM] = {
-	[TTL_VI_SRC_VI0] = {
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX4P,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX4P_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX4P_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX3N,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX3N_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX3N_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX3P,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX3P_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX3P_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX2N,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX2N_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX2N_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX2P,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX2P_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX2P_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX1N,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX1N_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX1N_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX1P,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX1P_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX1P_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX0N,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX0N_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX0N_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX0P,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX0P_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX0P_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXM0,
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXM0_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXM0_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXP0,
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXP0_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXP0_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXM1,
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXM1_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXM1_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXP1,
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXP1_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXP1_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXM2,
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXM2_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXM2_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXP2,
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXP2_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPI_TXP2_MASK,
-			1,
-		},
-	},
-#ifdef  __SOC_MARS__
-	[TTL_VI_SRC_VI1] = {
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D0,
-			FMUX_GPIO_FUNCSEL_VIVO_D0_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D0_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D1,
-			FMUX_GPIO_FUNCSEL_VIVO_D1_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D1_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D2,
-			FMUX_GPIO_FUNCSEL_VIVO_D2_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D2_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D3,
-			FMUX_GPIO_FUNCSEL_VIVO_D3_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D3_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D4,
-			FMUX_GPIO_FUNCSEL_VIVO_D4_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D4_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D5,
-			FMUX_GPIO_FUNCSEL_VIVO_D5_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D5_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D6,
-			FMUX_GPIO_FUNCSEL_VIVO_D6_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D6_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D7,
-			FMUX_GPIO_FUNCSEL_VIVO_D7_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D7_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D8,
-			FMUX_GPIO_FUNCSEL_VIVO_D8_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D8_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D9,
-			FMUX_GPIO_FUNCSEL_VIVO_D9_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D9_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D10,
-			FMUX_GPIO_FUNCSEL_VIVO_D10_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D10_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX5N,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX5N_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX5N_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX5P,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX5P_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX5P_MASK,
-			1,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX4N,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX4N_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX4N_MASK,
-			2,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX4P,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX4P_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX4P_MASK,
-			2,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX3N,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX3N_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX3N_MASK,
-			2,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX3P,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX3P_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX3P_MASK,
-			2,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX2N,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX2N_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX2N_MASK,
-			4,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX2P,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX2P_OFFSET,
-			FMUX_GPIO_FUNCSEL_PAD_MIPIRX2P_MASK,
-			4
-		},
-	},
-	[TTL_VI_SRC_VI2] = {
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D0,
-			FMUX_GPIO_FUNCSEL_VIVO_D0_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D0_MASK,
-			0,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D1,
-			FMUX_GPIO_FUNCSEL_VIVO_D1_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D1_MASK,
-			0,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D2,
-			FMUX_GPIO_FUNCSEL_VIVO_D2_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D2_MASK,
-			0,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D3,
-			FMUX_GPIO_FUNCSEL_VIVO_D3_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D3_MASK,
-			0,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D4,
-			FMUX_GPIO_FUNCSEL_VIVO_D4_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D4_MASK,
-			0,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D5,
-			FMUX_GPIO_FUNCSEL_VIVO_D5_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D5_MASK,
-			0,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D6,
-			FMUX_GPIO_FUNCSEL_VIVO_D6_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D6_MASK,
-			0,
-		},
-		{
-			FMUX_GPIO_FUNCSEL_VIVO_D7,
-			FMUX_GPIO_FUNCSEL_VIVO_D7_OFFSET,
-			FMUX_GPIO_FUNCSEL_VIVO_D7_MASK,
-			0,
-		},
-	},
-#endif
-};
-
-static void cif_config_pinmux(enum ttl_src_e vi, uint32_t pad)
-{
-	mmio_clrsetbits_32(PINMUX_BASE + vi_pin[vi][pad].addr,
-			vi_pin[vi][pad].mask << vi_pin[vi][pad].offset,
-			vi_pin[vi][pad].func);
-}
-
-static int _cif_set_attr_cmos(struct cvi_cif_dev *dev,
-			      struct cif_ctx *ctx,
-			      struct combo_dev_attr_s *attr)
-{
-	struct cif_param *param = ctx->cur_config;
-	struct param_ttl *ttl = &param->cfg.ttl;
-	enum ttl_src_e vi = attr->ttl_attr.vi;
-	int i;
-
-	if (vi == TTL_VI_SRC_VI2)
-		return -EINVAL;
-
-	/* config the pinmux */
-	for (i = 0; i < TTL_PIN_FUNC_NUM; i++) {
-		if (attr->ttl_attr.func[i] < 0)
-			continue;
-		if (attr->ttl_attr.func[i] >= TTL_PIN_FUNC_NUM)
-			return -EINVAL;
-		cif_set_ttl_pinmux(ctx, (enum ttl_vi_from_e)vi, i, attr->ttl_attr.func[i]);
-		cif_config_pinmux(vi, attr->ttl_attr.func[i]);
-	}
-	if (vi == TTL_VI_SRC_VI0)
-		PINMUX_CONFIG(PAD_MIPIRX4N, VI0_CLK);
-#ifdef  __SOC_MARS__
-	else if (vi == TTL_VI_SRC_VI1)
-		PINMUX_CONFIG(VIVO_CLK, VI1_CLK);
-	else
-		PINMUX_CONFIG(VIVO_CLK, VI2_CLK);
-#endif
-	switch (attr->ttl_attr.raw_data_type) {
-	case RAW_DATA_8BIT:
-		ttl->sensor_fmt = TTL_SENSOR_8_BIT;
-		break;
-	case RAW_DATA_10BIT:
-		ttl->sensor_fmt = TTL_SENSOR_10_BIT;
-		break;
-	case RAW_DATA_12BIT:
-		ttl->sensor_fmt = TTL_SENSOR_12_BIT;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	switch (attr->ttl_attr.ttl_fmt) {
-	case TTL_SYNC_PAT:
-		ttl->fmt = TTL_SYNC_PAT_SENSOR;
-		break;
-	case TTL_VHS_11B:
-		ttl->fmt = TTL_VHS_SENSOR;
-		break;
-	case TTL_VDE_11B:
-		ttl->fmt = TTL_VDE_SENSOR;
-		break;
-	case TTL_VSDE_11B:
-		ttl->fmt = TTL_VSDE_SENSOR;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	param->type = CIF_TYPE_TTL;
-	ttl->vi_from = (enum ttl_vi_from_e)vi;
-	ttl->vi_sel = VI_RAW;
-
-	cif_streaming(ctx, 1, 0);
-
-	return 0;
-}
-#endif // DVP_IF
-
-#ifdef BT1120_IF
-static int _cif_set_attr_bt1120(struct cvi_cif_dev *dev,
-				struct cif_ctx *ctx,
-				struct combo_dev_attr_s *attr)
-{
-	struct cif_param *param = ctx->cur_config;
-	struct param_ttl *ttl = &param->cfg.ttl;
-	struct cvi_link *link = ctx_to_link(ctx);
-	enum ttl_src_e vi = attr->ttl_attr.vi;
-	int i;
-
-	if (vi == TTL_VI_SRC_VI2)
-		return -EINVAL;
-
-	/* config the pinmux */
-	for (i = 0; i < TTL_PIN_FUNC_NUM; i++) {
-		if (attr->ttl_attr.func[i] < 0)
-			continue;
-		if (attr->ttl_attr.func[i] >= TTL_PIN_FUNC_NUM)
-			return -EINVAL;
-		cif_set_ttl_pinmux(ctx, (enum ttl_vi_from_e)vi, i, attr->ttl_attr.func[i]);
-		cif_config_pinmux(vi, attr->ttl_attr.func[i]);
-	}
-	if (vi == TTL_VI_SRC_VI0)
-		PINMUX_CONFIG(PAD_MIPIRX4N, VI0_CLK);
-#ifdef  __SOC_MARS__
-	else if (vi == TTL_VI_SRC_VI1)
-		PINMUX_CONFIG(VIVO_CLK, VI1_CLK);
-	else
-		PINMUX_CONFIG(VIVO_CLK, VI2_CLK);
-#endif
-
-	param->type = CIF_TYPE_TTL;
-	ttl->vi_from = (enum ttl_vi_from_e)vi;
-	ttl->fmt = TTL_SYNC_PAT_17B_BT1120;
-	ttl->width = attr->img_size.width - 1;
-	ttl->height = attr->img_size.height - 1;
-	ttl->sensor_fmt = TTL_SENSOR_12_BIT;
-	ttl->clk_inv = link->clk_edge;
-	ttl->vi_sel = VI_BT1120;
-	ttl->v_bp = (!attr->ttl_attr.v_bp) ? 9 : attr->ttl_attr.v_bp;
-	ttl->h_bp = (!attr->ttl_attr.h_bp) ? 8 : attr->ttl_attr.h_bp;
-
-	cif_streaming(ctx, 1, 0);
-
-	return 0;
-}
-#endif // BT1120_IF
-
-#ifdef BT601_IF
-static int _cif_set_attr_bt601(struct cvi_cif_dev *dev,
-				       struct cif_ctx *ctx,
-				       struct combo_dev_attr_s *attr)
-{
-	struct cif_param *param = ctx->cur_config;
-	struct param_ttl *ttl = &param->cfg.ttl;
-	struct cvi_link *link = ctx_to_link(ctx);
-	enum ttl_src_e vi = attr->ttl_attr.vi;
-	int i;
-
-	if (vi == TTL_VI_SRC_VI2)
-		return -EINVAL;
-
-	/* config the pinmux */
-	for (i = 0; i < TTL_PIN_FUNC_NUM; i++) {
-		if (attr->ttl_attr.func[i] < 0)
-			continue;
-		if (attr->ttl_attr.func[i] >= TTL_PIN_FUNC_NUM)
-			return -EINVAL;
-		cif_set_ttl_pinmux(ctx, (enum ttl_vi_from_e)vi, i, attr->ttl_attr.func[i]);
-		cif_config_pinmux(vi, attr->ttl_attr.func[i]);
-	}
-	if (vi == TTL_VI_SRC_VI0)
-		PINMUX_CONFIG(PAD_MIPIRX4N, VI0_CLK);
-#ifdef  __SOC_MARS__
-	else if (vi == TTL_VI_SRC_VI1)
-		PINMUX_CONFIG(VIVO_CLK, VI1_CLK);
-	else
-		PINMUX_CONFIG(VIVO_CLK, VI2_CLK);
-#endif
-
-	switch (attr->ttl_attr.raw_data_type) {
-	case RAW_DATA_8BIT:
-		ttl->sensor_fmt = TTL_SENSOR_8_BIT;
-		break;
-	case RAW_DATA_10BIT:
-		ttl->sensor_fmt = TTL_SENSOR_10_BIT;
-		break;
-	case RAW_DATA_12BIT:
-		ttl->sensor_fmt = TTL_SENSOR_12_BIT;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	switch (attr->ttl_attr.ttl_fmt) {
-	case TTL_VHS_11B:
-		ttl->fmt = TTL_VHS_11B_BT601;
-		break;
-	case TTL_VHS_19B:
-		ttl->fmt = TTL_VHS_19B_BT601;
-		break;
-	case TTL_VDE_11B:
-		ttl->fmt = TTL_VDE_11B_BT601;
-		break;
-	case TTL_VDE_19B:
-		ttl->fmt = TTL_VDE_19B_BT601;
-		break;
-	case TTL_VSDE_11B:
-		ttl->fmt = TTL_VSDE_11B_BT601;
-		break;
-	case TTL_VSDE_19B:
-		ttl->fmt = TTL_VSDE_19B_BT601;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	param->type = CIF_TYPE_TTL;
-	ttl->vi_from = (enum ttl_vi_from_e)vi;
-	ttl->width = attr->img_size.width - 1;
-	ttl->height = attr->img_size.height - 1;
-	ttl->clk_inv = link->clk_edge;
-	ttl->vi_sel = VI_BT601;
-	ttl->v_bp = (!attr->ttl_attr.v_bp) ? 0x23 : attr->ttl_attr.v_bp;
-	ttl->h_bp = (!attr->ttl_attr.h_bp) ? 0xbf : attr->ttl_attr.h_bp;
-
-	cif_streaming(ctx, 1, 0);
-
-	return 0;
-}
-#endif // BT601_IF
-
-#ifdef BT_DEMUX_IF
-static int _cif_set_attr_bt_demux(struct cvi_cif_dev *dev,
-					struct cif_ctx *ctx,
-					struct combo_dev_attr_s *attr)
-{
-	struct cif_param *param = ctx->cur_config;
-	struct param_btdemux *btdemux = &param->cfg.btdemux;
-	struct cvi_link *link = ctx_to_link(ctx);
-	struct bt_demux_attr_s *info = &attr->bt_demux_attr;
-	int i;
-
-	/* config the pinmux */
-	for (i = TTL_PIN_FUNC_D0; i < TTL_PIN_FUNC_D8; i++) {
-		if (info->func[i] < 0)
-			continue;
-		if (info->func[i] >= TTL_PIN_FUNC_D8)
-			return -EINVAL;
-		cif_set_ttl_pinmux(ctx, FROM_VI2, i, info->func[i]);
-		cif_config_pinmux((enum ttl_src_e)FROM_VI2, info->func[i]);
-	}
-	PINMUX_CONFIG(VIVO_CLK, VI2_CLK);
-	param->type = CIF_TYPE_BT_DMUX;
-	btdemux->fmt = TTL_SYNC_PAT_9B_BT656;
-	btdemux->width = attr->img_size.width - 1;
-	btdemux->height = attr->img_size.height - 1;
-	btdemux->clk_inv = link->clk_edge;
-	btdemux->v_fp = (!info->v_fp) ? 0x0f : info->v_fp;
-	btdemux->h_fp = (!info->h_fp) ? 0x0f : info->h_fp;
-	btdemux->sync_code_part_A[0] = info->sync_code_part_A[0];
-	btdemux->sync_code_part_A[1] = info->sync_code_part_A[1];
-	btdemux->sync_code_part_A[2] = info->sync_code_part_A[2];
-	for (i = 0; i < BT_DEMUX_NUM; i++) {
-		btdemux->sync_code_part_B[i].sav_vld = info->sync_code_part_B[i].sav_vld;
-		btdemux->sync_code_part_B[i].sav_blk = info->sync_code_part_B[i].sav_blk;
-		btdemux->sync_code_part_B[i].eav_vld = info->sync_code_part_B[i].eav_vld;
-		btdemux->sync_code_part_B[i].eav_blk = info->sync_code_part_B[i].eav_blk;
-	}
-	btdemux->demux = (enum cif_btdmux_mode_e)info->mode;
-	btdemux->yc_exchg = info->yc_exchg;
-
-	cif_streaming(ctx, 1, 0);
-
-	return 0;
-}
-#endif // BT_DEMUX_IF
-
-#ifdef BT656_IF
-static int _cif_set_attr_bt656_9b(struct cvi_cif_dev *dev,
-				  struct cif_ctx *ctx,
-				  struct combo_dev_attr_s *attr)
-{
-	struct cif_param *param = ctx->cur_config;
-	struct param_ttl *ttl = &param->cfg.ttl;
-	struct cvi_link *link = ctx_to_link(ctx);
-	enum ttl_src_e vi = attr->ttl_attr.vi;
-	int i;
-
-	/* config the pinmux */
-	for (i = 0; i < TTL_PIN_FUNC_NUM; i++) {
-		if (attr->ttl_attr.func[i] < 0)
-			continue;
-		if (attr->ttl_attr.func[i] >= TTL_PIN_FUNC_NUM)
-			return -EINVAL;
-		cif_set_ttl_pinmux(ctx, (enum ttl_vi_from_e)vi, i, attr->ttl_attr.func[i]);
-		cif_config_pinmux(vi, attr->ttl_attr.func[i]);
-	}
-	if (vi == TTL_VI_SRC_VI0)
-		PINMUX_CONFIG(PAD_MIPIRX4N, VI0_CLK);
-#ifdef  __SOC_MARS__
-	else if (vi == TTL_VI_SRC_VI1)
-		PINMUX_CONFIG(VIVO_CLK, VI1_CLK);
-	else
-		PINMUX_CONFIG(VIVO_CLK, VI2_CLK);
-#endif
-
-	param->type = CIF_TYPE_TTL;
-	ttl->vi_from = (enum ttl_vi_from_e)vi;
-	ttl->fmt_out = TTL_BT_FMT_OUT_CBYCRY;
-	ttl->fmt = TTL_SYNC_PAT_9B_BT656;
-	ttl->width = attr->img_size.width - 1;
-	ttl->height = attr->img_size.height - 1;
-	ttl->sensor_fmt = TTL_SENSOR_12_BIT;
-	ttl->clk_inv = link->clk_edge;
-	ttl->vi_sel = VI_BT656;
-	ttl->v_bp = (!attr->ttl_attr.v_bp) ? 0xf : attr->ttl_attr.v_bp;
-	ttl->h_bp = (!attr->ttl_attr.h_bp) ? 0xf : attr->ttl_attr.h_bp;
-
-	cif_streaming(ctx, 1, 0);
-
-	return 0;
-}
-#endif // BT656_IF
-
-#ifdef	CUSTOM0_IF
-static int _cif_set_attr_custom0(struct cvi_cif_dev *dev,
-				struct cif_ctx *ctx,
-				struct combo_dev_attr_s *attr)
-{
-	struct cif_param *param = ctx->cur_config;
-	struct param_ttl *ttl = &param->cfg.ttl;
-	enum ttl_src_e vi = attr->ttl_attr.vi;
-	int i;
-
-	if (vi == TTL_VI_SRC_VI2)
-		return -EINVAL;
-
-	/* config the pinmux */
-	for (i = 0; i < TTL_PIN_FUNC_NUM; i++) {
-		if (attr->ttl_attr.func[i] < 0)
-			continue;
-		if (attr->ttl_attr.func[i] >= TTL_PIN_FUNC_NUM)
-			return -EINVAL;
-		cif_set_ttl_pinmux(ctx, (enum ttl_vi_from_e)vi, i, attr->ttl_attr.func[i]);
-		cif_config_pinmux(vi, attr->ttl_attr.func[i]);
-	}
-	if (vi == TTL_VI_SRC_VI0)
-		PINMUX_CONFIG(PAD_MIPIRX4N, VI0_CLK);
-	else if (vi == TTL_VI_SRC_VI1)
-		PINMUX_CONFIG(VIVO_CLK, VI1_CLK);
-	else
-		PINMUX_CONFIG(VIVO_CLK, VI2_CLK);
-
-	param->type = CIF_TYPE_TTL;
-	ttl->vi_from = (enum ttl_vi_from_e)vi;
-	ttl->fmt_out = TTL_BT_FMT_OUT_CBYCRY;
-	ttl->fmt = TTL_CUSTOM_0;
-	ttl->width = attr->img_size.width - 1;
-	ttl->height = attr->img_size.height - 1;
-	ttl->sensor_fmt = TTL_SENSOR_12_BIT;
-	ttl->vi_sel = VI_BT601;
-	ttl->v_bp = (!attr->ttl_attr.v_bp) ? 4095 : attr->ttl_attr.v_bp;
-	ttl->h_bp = (!attr->ttl_attr.h_bp) ? 4 : attr->ttl_attr.h_bp;
-
-	cif_streaming(ctx, 1, 0);
-
-	return 0;
-}
-#endif // CUSTOM0_IF
-
 /*
  * 1. Precondition: the mac_max = 400M by default, can be adjust by ioctl (app).
  * 2. If mac_max is below 400M, the vip_sys_2 is 400M (parent: mipimpll).
@@ -1772,7 +617,6 @@ static int _cif_set_mac_clk(struct cvi_cif_dev *cdev, uint32_t devno,
 		clk_set_parent(cdev->vip_sys2.clk_o, cdev->clk_disppll.clk_o);
 	}
 
-#if defined(CONFIG_COMMON_CLK_CVITEK)
 	{
 	/* target = source * (1 + ratio) / 32, ratio <= 0x1F */
 	u32 tmp = clk_val * 32 / cdev->max_mac_clk;
@@ -1804,33 +648,6 @@ static int _cif_set_mac_clk(struct cvi_cif_dev *cdev, uint32_t devno,
 	dev_dbg(link->dev, "ratio %d, set rate %dM\n", tmp, (tmp + 1) * cdev->max_mac_clk / 32);
 	udelay(5);
 	}
-#else
-	switch (mac_clk) {
-	case RX_MAC_CLK_200M:
-		/* vipsys2 dividor factor */
-		iowrite32((6<<16)|0x09, ioremap(0x03002110, 4));
-		udelay(5);
-		break;
-	case RX_MAC_CLK_300M:
-		/* vipsys2 dividor factor */
-		iowrite32((4<<16)|0x09, ioremap(0x03002110, 4));
-		udelay(5);
-		break;
-	case RX_MAC_CLK_400M:
-		/* vipsys2 dividor factor */
-		iowrite32((3<<16)|0x09, ioremap(0x03002110, 4));
-		udelay(5);
-		break;
-	case RX_MAC_CLK_600M:
-		/* vipsys2 dividor factor */
-		iowrite32((2<<16)|0x09, ioremap(0x03002110, 4));
-		udelay(5);
-		break;
-	default:
-		/* do nothing and leave */
-		break;
-	}
-#endif
 	return 0;
 }
 
@@ -1877,6 +694,7 @@ static int cif_set_dev_attr(struct cvi_cif_dev *dev,
 		cif_set_output_clk_edge(dev, &clk_edge);
 	}
 
+  pr_info("set mac clk: %d %x\n", attr->devno, attr->mac_clk);
 	/* set mac clk */
 	rc = cif_set_mac_clk(dev, attr->devno, attr->mac_clk);
 	if (rc < 0)
@@ -1892,47 +710,6 @@ static int cif_set_dev_attr(struct cvi_cif_dev *dev,
 #ifdef MIPI_IF
 	case INPUT_MODE_MIPI:
 		rc = _cif_set_attr_mipi(dev, ctx, &rx_attr->mipi_attr);
-		break;
-#endif
-#ifdef SUBLVDS_IF
-	case INPUT_MODE_SUBLVDS:
-		rc = _cif_set_attr_sublvds(dev, ctx,
-					   &rx_attr->lvds_attr);
-		break;
-#endif
-#ifdef HISPI_IF
-	case INPUT_MODE_HISPI:
-		rc = _cif_set_attr_hispi(dev, ctx, &rx_attr->lvds_attr);
-		break;
-#endif
-#ifdef DVP_IF
-	case INPUT_MODE_CMOS:
-		rc = _cif_set_attr_cmos(dev, ctx, rx_attr);
-		break;
-#endif
-#ifdef BT1120_IF
-	case INPUT_MODE_BT1120:
-		rc = _cif_set_attr_bt1120(dev, ctx, rx_attr);
-		break;
-#endif
-#ifdef BT601_IF
-	case INPUT_MODE_BT601:
-		rc = _cif_set_attr_bt601(dev, ctx, rx_attr);
-		break;
-#endif
-#ifdef BT656_IF
-	case INPUT_MODE_BT656_9B:
-		rc = _cif_set_attr_bt656_9b(dev, ctx, rx_attr);
-		break;
-#endif
-#ifdef CUSTOM0_IF
-	case INPUT_MODE_CUSTOM_0:
-		rc = _cif_set_attr_custom0(dev, ctx, rx_attr);
-		break;
-#endif
-#ifdef BT_DEMUX_IF
-	case INPUT_MODE_BT_DEMUX:
-		rc = _cif_set_attr_bt_demux(dev, ctx, rx_attr);
 		break;
 #endif
 	default:
@@ -1955,6 +732,8 @@ static int cif_set_output_clk_edge(struct cvi_cif_dev *dev,
 {
 	struct cif_ctx *ctx = &dev->link[clk_edge->devno].cif_ctx;
 
+  pr_info("cif_set_output_clk_edge: %d  clk_edge: %d  val: %d\n", clk_edge->devno, clk_edge->edge, (clk_edge->edge == CLK_UP_EDGE)
+			 ? CIF_CLK_RISING : CIF_CLK_FALLING);
 	dev->link[clk_edge->devno].clk_edge = clk_edge->edge;
 
 	cif_set_clk_edge(ctx, CIF_PHY_LANE_0,
@@ -2021,6 +800,7 @@ static int cif_reset_mipi(struct cvi_cif_dev *dev, uint32_t devno)
 		mask.b.csi_mac2 = 1;
 		vip_toggle_reset(mask);
 	}
+  pr_info("csi mac: %x\n", devno);
 
 	/* reset parameters. */
 	cif_reset_param(link);
@@ -2088,18 +868,6 @@ static inline int cif_get_cif_attr(struct cvi_cif_dev *dev,
 	return 0;
 }
 
-static inline int cif_set_lvds_fp_vs(struct cvi_cif_dev *dev,
-			      struct vsync_gen_s *vs)
-{
-	struct cif_ctx *ctx = &dev->link[vs->devno].cif_ctx;
-
-	dev->link[vs->devno].distance_fp = vs->distance_fp;
-	cif_set_lvds_vsync_gen(ctx, vs->distance_fp);
-
-	return 0;
-}
-
-#if defined(CONFIG_COMMON_CLK_CVITEK)
 struct cam_pll_s {
 //	uint32_t	pll_rate;
 	uint32_t	clk_rate;
@@ -2128,62 +896,18 @@ const struct cam_pll_s cam_pll_setting[CAMPLL_FREQ_NUM] = {
 	},
 };
 
-#else
-
-struct cam_pll_s {
-	uint32_t	sync_set;
-	uint8_t		div_sel;
-	uint8_t		post_div_sel;
-	uint8_t		ictrl;
-	uint8_t		sel_mode;
-	uint8_t		pre_div_sel;
-	uint8_t		clk_div;
-};
-
-const struct cam_pll_s cam_pll_setting[CAMPLL_FREQ_NUM] = {
-	[CAMPLL_FREQ_37P125M] = {
-		.sync_set = 406720388UL,
-		.div_sel = 12,
-		.post_div_sel = 1,
-		.ictrl = 0,
-		.sel_mode = 1,
-		.pre_div_sel = 1,
-		.clk_div = 32,
-	},
-	[CAMPLL_FREQ_25M] = {
-		.sync_set = 393705325UL,
-		.div_sel = 11,
-		.post_div_sel = 1,
-		.ictrl = 0,
-		.sel_mode = 1,
-		.pre_div_sel = 1,
-		.clk_div = 45,
-	},
-	[CAMPLL_FREQ_27M] = {
-		.sync_set = 406720388UL,
-		.div_sel = 12,
-		.post_div_sel = 1,
-		.ictrl = 0,
-		.sel_mode = 1,
-		.pre_div_sel = 1,
-		.clk_div = 44,
-	},
-};
-#endif
-
 static int _cif_enable_snsr_clk(struct device *dev,
 				struct cvi_cif_dev *cdev,
 				uint32_t devno, uint8_t on)
 {
-#ifndef FPGA_PORTING
 	uint32_t value;
+  pr_info("_cif_enable_snsr_clk  1: %x   2: %x\n", mclk0, mclk1);
 
 	if (mclk0 > CAMPLL_FREQ_NONE && mclk0 < CAMPLL_FREQ_NUM) {
 		const struct cam_pll_s *clk = &cam_pll_setting[mclk0];
 
 		/* camera interface. */
 		// PINMUX_CONFIG(CAM_MCLK0, CAM_MCLK0);
-	#if defined(CONFIG_COMMON_CLK_CVITEK)
 		(void)value;
 		/* set rate of clk_cam0pll */
 		// clk_set_rate(clk_get_parent(cdev->clk_cam0.clk_o), clk->pll_rate);
@@ -2206,49 +930,6 @@ static int _cif_enable_snsr_clk(struct device *dev,
 				cdev->clk_cam0.is_on = 0;
 			}
 		}
-	#else
-		/* [TODO] a hack for the CAM0PLL/CAM1PLL pll */
-
-		(void)dev;
-		(void)link;
-		/* set pwd */
-		value = ioread32(ioremap(0x03002800, 0x4));
-		value |= (1<<12);
-		iowrite32(value, ioremap(0x03002800, 0x4));
-		udelay(100);
-
-		/* eanble camp0pll clk source */
-		value = ioread32(ioremap(0x03002030, 4));
-		value &= ~(1<<28);
-		iowrite32(value, ioremap(0x03002030, 4));
-		/* cam0pll dividor factor */
-		iowrite32((clk->clk_div<<16)|0x09, ioremap(0x030020F4, 4));
-		/* set sync source en */
-		value = ioread32(ioremap(0x03002840, 4));
-		value |= (1<<4);
-		iowrite32(value, ioremap(0x03002840, 4));
-
-		if (on) {
-			/* set sync set */
-			iowrite32(clk->sync_set, ioremap(0x03002874, 0x4));
-			/* set sync set sw up */
-			value = ioread32(ioremap(0x03002870, 0x4));
-			value ^= 0x01;
-			iowrite32(value, ioremap(0x03002870, 0x4));
-			/* set csr */
-			value = clk->pre_div_sel |
-				(clk->post_div_sel << 8) |
-				(clk->sel_mode << 15) |
-				(clk->div_sel << 17) |
-				(clk->ictrl << 24);
-			iowrite32(value, ioremap(0x03002814, 0x4));
-			/* clear pwd */
-			value = ioread32(ioremap(0x03002800, 0x4));
-			value &= ~(1<<12);
-			iowrite32(value, ioremap(0x03002800, 0x4));
-			udelay(100);
-		}
-	#endif
 	}
 
 	if (mclk1 > CAMPLL_FREQ_NONE  && mclk1 < CAMPLL_FREQ_NUM) {
@@ -2256,13 +937,13 @@ static int _cif_enable_snsr_clk(struct device *dev,
 
 		/* camera interface. */
 		// PINMUX_CONFIG(CAM_MCLK1, CAM_MCLK1);
-	#if defined(CONFIG_COMMON_CLK_CVITEK)
 		(void)value;
 		/* set rate of clk_cam1pll */
 		// clk_set_rate(clk_get_parent(cdev->clk_cam1.clk_o), clk->pll_rate);
 
 		/* set rate of clk_cam1 */
 		clk_set_rate(cdev->clk_cam1.clk_o, clk->clk_rate);
+		pr_info("Setting clk_cam1 rate to %d Hz\n", clk->clk_rate);
 
 		if (on) {
 			if (!cdev->clk_cam1.is_on) {
@@ -2273,68 +954,7 @@ static int _cif_enable_snsr_clk(struct device *dev,
 			clk_disable_unprepare(cdev->clk_cam1.clk_o);
 			cdev->clk_cam1.is_on = 0;
 		}
-	#else
-		/* set pwd */
-		value = ioread32(ioremap(0x03002800, 0x4));
-		value |= (1<<16);
-		iowrite32(value, ioremap(0x03002800, 0x4));
-		udelay(100);
-
-		/* eanble camp0pll clk source */
-		value = ioread32(ioremap(0x03002030, 4));
-		value &= ~(1<<29);
-		iowrite32(value, ioremap(0x03002030, 4));
-		/* cam0pll dividor factor */
-		iowrite32((clk->clk_div<<16)|0x09, ioremap(0x030020F8, 4));
-		/* set sync source en */
-		value = ioread32(ioremap(0x03002840, 4));
-		value |= (1<<5);
-		iowrite32(value, ioremap(0x03002840, 4));
-
-		if (on) {
-			/* set sync set */
-			iowrite32(clk->sync_set, ioremap(0x03002884, 0x4));
-			/* set sync set sw up */
-			value = ioread32(ioremap(0x03002880, 0x4));
-			value ^= 0x01;
-			iowrite32(value, ioremap(0x03002880, 0x4));
-			/* set csr */
-			value = clk->pre_div_sel |
-				(clk->post_div_sel << 8) |
-				(clk->sel_mode << 15) |
-				(clk->div_sel << 17) |
-				(clk->ictrl << 24);
-			iowrite32(value, ioremap(0x03002818, 0x4));
-			/* clear pwd */
-			value = ioread32(ioremap(0x03002800, 0x4));
-			value &= ~(1<<16);
-			iowrite32(value, ioremap(0x03002800, 0x4));
-			udelay(100);
-		}
-	#endif
 	}
-
-#else
-//	if (mclk0 > CAMPLL_FREQ_NONE && mclk0 < CAMPLL_FREQ_NUM) {
-//		const struct cam_pll_s *clk = &cam_pll_setting[mclk0];
-//
-//		printk("FPGA clk=%d\n", clk->clk_rate);
-//	}
-	if (on) {
-		iowrite32((ioread32(ioremap(0x0a0c8018, 0x4)) | 0x02),
-				    ioremap(0x0a0c8018, 0x4));
-#ifdef FPGA_PORTING
-		iowrite32(0x32100000, ioremap(0x0A0880F8, 0x4));
-		mdelay(10);
-		iowrite32(0x32100000, ioremap(0x0A0880F8, 0x4));
-#else
-		iowrite32((ioread32(ioremap(0x0A0880F8, 0x4)) | 0x03100039),
-				    ioremap(0x0A0880F8, 0x4));
-#endif
-	} else
-		iowrite32((ioread32(ioremap(0x0a0c8018, 0x4)) & ~0x02),
-				    ioremap(0x0a0c8018, 0x4));
-#endif
 	return 0;
 }
 
@@ -2368,12 +988,6 @@ static int cif_reset_snsr_gpio(struct cvi_cif_dev *dev,
 	return 0;
 }
 
-static inline int cif_reset_lvds(struct cvi_cif_dev *dev,
-				unsigned int devno)
-{
-	return 0;
-}
-
 static inline int cif_bt_fmt_out(struct cvi_cif_dev *dev,
 			  struct bt_fmt_out_s *fmt_out)
 {
@@ -2392,6 +1006,7 @@ static long _cif_ioctl(struct cvi_cif_dev *dev, unsigned int cmd,
 	struct cif_ctx *ctx = NULL;
 	uint32_t devno;
 
+	pr_info("%s\n", _to_string_cmd(cmd));
 	dev_dbg(_dev, "%s\n", _to_string_cmd(cmd));
 
 	if (arg == 0) {
@@ -2480,20 +1095,6 @@ static long _cif_ioctl(struct cvi_cif_dev *dev, unsigned int cmd,
 
 		return cif_set_wdr_manual(dev, &wdr_manu);
 	}
-	case CVI_MIPI_SET_LVDS_FP_VS:
-	{
-		struct vsync_gen_s vsync;
-
-		if (from_user) {
-			if (copy_from_user(&vsync, (void *)arg, sizeof(vsync))) {
-				dev_err(_dev, "copy_from_user failed.\n");
-				return -ENOMEM;
-			}
-		} else
-			memcpy(&vsync, (void *)arg, sizeof(vsync));
-
-		return cif_set_lvds_fp_vs(dev, &vsync);
-	}
 	case CVI_MIPI_RESET_SENSOR:
 		if (from_user) {
 			if (copy_from_user(&devno, (void *)arg, sizeof(devno))) {
@@ -2502,6 +1103,7 @@ static long _cif_ioctl(struct cvi_cif_dev *dev, unsigned int cmd,
 			}
 		} else
 			devno = *(uint32_t *)arg;
+      pr_info("CVI_MIPI_RESET_MIPI == devno: %d", devno);
 		return cif_reset_snsr_gpio(dev, devno, 1);
 	case CVI_MIPI_UNRESET_SENSOR:
 		if (from_user) {
@@ -2530,16 +1132,6 @@ static long _cif_ioctl(struct cvi_cif_dev *dev, unsigned int cmd,
 		} else
 			devno = *(uint32_t *)arg;
 		return cif_enable_snsr_clk(dev, devno, 0);
-	case CVI_MIPI_RESET_LVDS:
-	case CIF_CB_RESET_LVDS:
-		if (from_user) {
-			if (copy_from_user(&devno, (void *)arg, sizeof(devno))) {
-				dev_err(_dev, "copy_from_user failed.\n");
-				return -ENOMEM;
-			}
-		} else
-			devno = *(uint32_t *)arg;
-		return cif_reset_lvds(dev, devno);
 	case CVI_MIPI_GET_CIF_ATTR:
 	case CIF_CB_GET_CIF_ATTR:
 	{
@@ -2738,6 +1330,12 @@ static irqreturn_t cif_isr(int irq, void *_link)
 		link->sts_csi.errcnt_hdr++;
 	if (cif_check_csi_int_sts(ctx, CIF_INT_STS_FIFO_FULL_MASK))
 		link->sts_csi.fifo_full++;
+  pr_info("ecc = %u, crc = %u, wc = %u, hdr = %u, fifo_full = %u\n",
+      link->sts_csi.errcnt_ecc,
+      link->sts_csi.errcnt_crc,
+      link->sts_csi.errcnt_wc,
+      link->sts_csi.errcnt_hdr,
+      link->sts_csi.fifo_full);
 
 	if (link->sts_csi.errcnt_ecc > 0xFFFF ||
 		link->sts_csi.errcnt_crc > 0xFFFF ||
@@ -2936,36 +1534,6 @@ static void cif_show_dev_attr(struct seq_file *m,
 
 	}
 	break;
-	case INPUT_MODE_SUBLVDS:
-	case INPUT_MODE_HISPI: {
-		struct lvds_dev_attr_s *lvds = &attr->lvds_attr;
-		char *ptr = buf;
-
-		for (i = 0; i < CIF_LANE_NUM; i++) {
-			sprintf(ptr, "%2d,", lvds->lane_id[i]);
-			ptr += 3;
-		}
-		*(ptr - 1) = '\0';
-		ptr = buf2;
-		for (i = 0; i < CIF_LANE_NUM; i++) {
-			sprintf(ptr, "%2d,", lvds->pn_swap[i]);
-			ptr += 3;
-		}
-		*(ptr - 1) = '\0';
-		seq_printf(m, "%10s%10s%15s%15s%10s%12s%16s\n",
-			   _to_string_raw_data_type(lvds->raw_data_type),
-			   _to_string_wdr_mode(lvds->wdr_mode),
-			   buf, buf2,
-			   _to_string_lvds_sync_mode(lvds->sync_mode),
-			   _to_string_bit_endian(lvds->data_endian),
-			   _to_string_bit_endian(lvds->sync_code_endian));
-	}
-	break;
-	case INPUT_MODE_CMOS:
-	case INPUT_MODE_BT1120:
-		seq_printf(m, "%10s%10s%15s%10s%12s%16s\n",
-			   "N/A", "N/A", "N/A", "N/A", "N/A", "N/A");
-		break;
 	default:
 		break;
 	}

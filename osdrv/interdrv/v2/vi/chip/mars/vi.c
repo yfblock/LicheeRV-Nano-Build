@@ -1,3 +1,31 @@
+/*
+ * vi.c - CV182x/Mars 平台 VI (Video Input) 驱动核心
+ *
+ * 【模块职责】
+ * 本文件实现 ISP 前端的软件框架，负责从 CIF/传感器采集图像到内存的完整流水线，
+ * 包括：PreRaw FE/BE、RawTop、RgbTop、YuvTop 等 ISP 子块的数据通路与缓冲管理。
+ *
+ * 【数据流概览】
+ * 1. 传感器/CIF -> PreRaw FE (前段) -> [可选 DRAM] -> PreRaw BE (后段)
+ * 2. PreRaw BE -> RawTop (LSC/AE/AWB 等) -> RgbTop (降噪等) -> YuvTop (DCI/LDCI 等)
+ * 3. YuvTop 输出 -> 用户态 QBUF/DQBUF 或在线送给 VPSS
+ *
+ * 【关键路径】
+ * - 在线模式: sensor -> FE -> BE -> PostRaw -> VPSS/用户
+ * - 离线模式: sensor -> FE -> DRAM -> BE -> PostRaw -> VPSS/用户
+ * - YUV bypass: sensor -> CSI -> YUV DMA -> 用户/VPSS（无 ISP 处理）
+ *
+ * 【执行流程】
+ * - 打开: vi_open -> vi_init, _vi_sw_init
+ * - 启动: vi_start_streaming -> _vi_resume -> _vi_scene_ctrl -> _vi_ctrl_init -> _vi_dma_setup -> isp_streaming(enable)
+ * - 运行: 中断/tasklet -> _pre_hw_enque/_post_hw_enque -> isp_post_tasklet; 线程: preraw/vblank/event/err
+ * - 停止: vi_stop_streaming -> isp_streaming(disable) -> 等待空闲
+ * - 关闭: vi_release -> _vi_sdk_release, _vi_release_op
+ *
+ * 【日志】通过 vi_log_lv 控制（VI_ERR|VI_WARN|VI_NOTICE|VI_INFO|VI_DBG），
+ * 或 echo 8 > /sys/module/vi/parameters/vi_log_lv 开启 VI_INFO 以观察流程。
+ */
+
 #include <vi.h>
 #include <linux/cvi_base_ctx.h>
 #include <linux/of_gpio.h>
@@ -47,6 +75,8 @@
 #endif
 /*******************************************************
  *  Global variables
+ *  gViCtx: 全局 VI 上下文，供上层/其他模块查询通道、旋转等
+ *  gOverflowInfo: 溢出信息；g_vi_mesh: GDC mesh 缓存
  ******************************************************/
 //u32 vi_log_lv = VI_ERR | VI_WARN | VI_NOTICE | VI_INFO | VI_DBG;
 u32 vi_log_lv = 0;
@@ -70,6 +100,8 @@ struct cvi_gdc_mesh g_vi_mesh[VI_MAX_CHN_NUM];
 
 /*******************************************************
  *  Internal APIs
+ *  下方为内存池、GDC 回调、ISP 缓冲队列、DMA 配置、控制初始化、
+ *  前后端入队/出队、线程与错误处理等内部接口
  ******************************************************/
 
 #if (KERNEL_VERSION(4, 15, 0) <= LINUX_VERSION_CODE)
@@ -82,8 +114,8 @@ static void legacy_timer_emu_func(struct timer_list *t)
 #endif //(KERNEL_VERSION(4, 15, 0) <= LINUX_VERSION_CODE)
 
 /**
- * _mempool_reset - reset the byteused and assigned buffer for each dma
- *
+ * _mempool_reset - 重置 ISP 内存池：清空已用字节与各 DMA 的缓冲分配记录
+ * 在 vi_start_streaming 时调用，保证每次开流使用干净的内存布局
  */
 static void _vi_mempool_reset(void)
 {
@@ -1047,10 +1079,15 @@ EXIT:
 	_isp_yuvtop_dma_dump(ictx, raw_max);
 }
 
+/**
+ * _vi_dma_setup - 按当前使能的 pipe 配置各 ISP 阶段 DMA：PreRaw FE/BE、RawTop、RgbTop、YuvTop
+ * 在 vi_start_streaming 中 _vi_scene_ctrl 与 _vi_ctrl_init 之后调用
+ */
 void _vi_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
 {
 	enum cvi_isp_raw raw_num = ISP_PRERAW_A;
 
+	vi_pr(VI_INFO, "_vi_dma_setup: preraw_fe/be, rawtop, rgbtop, yuvtop\n");
 	for (raw_num = ISP_PRERAW_A; raw_num < ISP_PRERAW_VIRT_MAX; raw_num++) {
 		if (!ictx->isp_pipe_enable[raw_num])
 			continue;
@@ -2164,10 +2201,15 @@ static int _vi_call_cb(u32 m_id, u32 cmd_id, void *data)
 	return base_exe_module_cb(&exe_cb);
 }
 
+/**
+ * vi_init - 全局 VI 初始化：旋转、LDCAttr、GDC mesh 锁、通道绑定
+ * 在首次 vi_open 时由 _vi_sw_init 路径间接调用
+ */
 static void vi_init(void)
 {
 	int i, j;
 
+	vi_pr(VI_INFO, "vi_init: rotation/LDC/mesh/chn_bind init for VI_MAX_CHN_NUM=%d\n", VI_MAX_CHN_NUM);
 	for (i = 0; i < VI_MAX_CHN_NUM; ++i) {
 		gViCtx->enRotation[i] = ROTATION_0;
 		gViCtx->stLDCAttr[i].bEnable = CVI_FALSE;
@@ -2280,6 +2322,10 @@ static int _isp_yuv_bypass_trigger(struct cvi_vi_dev *vdev, const enum cvi_isp_r
 	return 0;
 }
 
+/**
+ * _vi_postraw_ctrl_setup - 配置 PostRaw 控制：RawTop/RgbTop/YuvTop 初始化与 isptop
+ * 仅 RGB 路径需要；在 vi_start_streaming 中 _vi_dma_setup 前调用
+ */
 void _vi_postraw_ctrl_setup(struct cvi_vi_dev *vdev)
 {
 	struct isp_ctx *ctx = &vdev->ctx;
@@ -2300,6 +2346,10 @@ void _vi_postraw_ctrl_setup(struct cvi_vi_dev *vdev)
 	ispblk_isptop_config(ctx);
 }
 
+/**
+ * _vi_pre_fe_ctrl_setup - 配置 PreRaw 前段：YUV bypass 或 RGB 的 CSI/ BLC/WBG/RGBMAP 等
+ * 在 vi_start_streaming 中对每个使能且非 offline_preraw 的 raw 调用
+ */
 void _vi_pre_fe_ctrl_setup(enum cvi_isp_raw raw_num, struct cvi_vi_dev *vdev)
 {
 	struct isp_ctx *ictx = &vdev->ctx;
@@ -2369,6 +2419,10 @@ void _vi_pre_fe_ctrl_setup(enum cvi_isp_raw raw_num, struct cvi_vi_dev *vdev)
 	}
 }
 
+/**
+ * _vi_ctrl_init - 初始化指定 raw 的 ISP 控制（CSI/crop/格式/场景等），并初始化 postraw
+ * 在 vi_start_streaming 中对每个使能的 raw_num 调用
+ */
 void _vi_ctrl_init(enum cvi_isp_raw raw_num, struct cvi_vi_dev *vdev)
 {
 	struct isp_ctx *ictx = &vdev->ctx;
@@ -2376,6 +2430,8 @@ void _vi_ctrl_init(enum cvi_isp_raw raw_num, struct cvi_vi_dev *vdev)
 
 	if (ictx->is_ctrl_inited)
 		return;
+
+	vi_pr(VI_INFO, "_vi_ctrl_init: raw_num=%d\n", raw_num);
 
 	if (vdev->snr_info[raw_num].snr_fmt.img_size[0].active_w != 0) { //MW config snr_info flow
 		ictx->isp_pipe_cfg[raw_num].csibdg_width = vdev->snr_info[raw_num].snr_fmt.img_size[0].width;
@@ -2515,6 +2571,10 @@ void _vi_ctrl_init(enum cvi_isp_raw raw_num, struct cvi_vi_dev *vdev)
 	}
 }
 
+/**
+ * _vi_scene_ctrl - 根据当前管道配置确定通道数、raw_max 等场景参数，供后续 DMA/控制初始化使用
+ * 在 vi_start_streaming 中最先调用
+ */
 void _vi_scene_ctrl(struct cvi_vi_dev *vdev, enum cvi_isp_raw *raw_max)
 {
 	struct isp_ctx *ctx = &vdev->ctx;
@@ -2812,6 +2872,10 @@ static void _set_init_state(struct cvi_vi_dev *vdev, const enum cvi_isp_raw raw_
 	}
 }
 
+/**
+ * vi_start_streaming - 启动 VI 采集流水线：resume、场景控制、CIF/控制/DMA 初始化、开 ISP 流
+ * 用户态通过 ioctl 下发 START 后调用，与 vi_stop_streaming 成对
+ */
 int vi_start_streaming(struct cvi_vi_dev *vdev)
 {
 	struct cif_attr_s cif_attr;
@@ -2821,6 +2885,7 @@ int vi_start_streaming(struct cvi_vi_dev *vdev)
 	enum cvi_isp_raw raw_max = ISP_PRERAW_MAX - 1;
 	int rc = 0;
 
+	vi_pr(VI_INFO, "vi_start_streaming: start\n");
 	vi_pr(VI_DBG, "+\n");
 
 	if (_vi_resume(vdev) != 0) {
@@ -3016,10 +3081,13 @@ int vi_start_streaming(struct cvi_vi_dev *vdev)
 		isp_streaming(ctx, true, raw_num);
 	}
 
-
+	vi_pr(VI_INFO, "vi_start_streaming: done (isp_streaming enabled)\n");
 	return rc;
 }
 
+/**
+ * vi_stop_streaming - 停止采集：置 isp_streamoff、等待各 FE/BE/POST 空闲、停 ISP 流并清理队列
+ */
 /* abort streaming and wait for last buffer */
 int vi_stop_streaming(struct cvi_vi_dev *vdev)
 {
@@ -3034,7 +3102,7 @@ int vi_stop_streaming(struct cvi_vi_dev *vdev)
 	u8 i = 0, count = 10;
 	u8 rc = 0;
 
-	vi_pr(VI_INFO, "+\n");
+	vi_pr(VI_INFO, "vi_stop_streaming: start (wait idle then disable isp)\n");
 
 	atomic_set(&vdev->isp_streamoff, 1);
 
@@ -3193,6 +3261,7 @@ int vi_stop_streaming(struct cvi_vi_dev *vdev)
 #endif
 	_vi_suspend(vdev);
 
+	vi_pr(VI_INFO, "vi_stop_streaming: done\n");
 	return rc;
 }
 
@@ -3552,6 +3621,10 @@ void _postraw_outbuf_enq(struct cvi_vi_dev *vdev, const enum cvi_isp_raw raw_num
 /*
  * for postraw offline only.
  *  trig preraw if there is output buffer in preraw output.
+ */
+/**
+ * _pre_hw_enque - PreRaw 前端入队：为下一帧配置 FE 输入缓冲并触发 isp_pre_trig
+ * 由 _vi_preraw_thread 或 YUV 完成路径调用，是每帧采集触发的核心入口之一
  */
 void _pre_hw_enque(
 	struct cvi_vi_dev *vdev,
@@ -4008,6 +4081,10 @@ static inline int _isp_clk_dynamic_en(struct cvi_vi_dev *vdev, bool en)
  * - postraw online -
  *  trig preraw if there is output buffer for postraw
  */
+/**
+ * _post_hw_enque - PostRaw 后端入队：从 post 输入队列取缓冲、更新 DMA/控制、触发 isp_post_trig
+ * 由 isp_post_tasklet 调用，与 _pre_hw_enque 配合完成一帧的 FE->BE->POST 流水
+ */
 static void _post_hw_enque(
 	struct cvi_vi_dev *vdev)
 {
@@ -4320,13 +4397,16 @@ static void _pre_fe_rgbmap_update(
 	}
 }
 
+/**
+ * vi_destory_thread - 停止并等待指定 VI 内核线程退出
+ */
 void vi_destory_thread(struct cvi_vi_dev *vdev, enum E_VI_TH th_id)
 {
 	if (th_id < 0 || th_id >= E_VI_TH_MAX) {
 		pr_err("No such thread_id(%d)\n", th_id);
 		return;
 	}
-
+	vi_pr(VI_INFO, "vi_destory_thread: th_id=%d\n", th_id);
 	if (vdev->vi_th[th_id].w_thread != NULL) {
 		int ret;
 
@@ -4341,6 +4421,10 @@ void vi_destory_thread(struct cvi_vi_dev *vdev, enum E_VI_TH th_id)
 	}
 }
 
+/**
+ * vi_create_thread - 创建 VI 内核线程：PRERAW / VBLANK / ERR_HANDLER / EVENT_HANDLER
+ * 在 MW 启动流时按需创建，与 vi_destory_thread 成对
+ */
 int vi_create_thread(struct cvi_vi_dev *vdev, enum E_VI_TH th_id)
 {
 	struct sched_param param;
@@ -4350,6 +4434,7 @@ int vi_create_thread(struct cvi_vi_dev *vdev, enum E_VI_TH th_id)
 		pr_err("No such thread_id(%d)\n", th_id);
 		return -1;
 	}
+	vi_pr(VI_INFO, "vi_create_thread: th_id=%d\n", th_id);
 
 	param.sched_priority = MAX_USER_RT_PRIO - 10;
 
@@ -4394,12 +4479,17 @@ int vi_create_thread(struct cvi_vi_dev *vdev, enum E_VI_TH th_id)
 	return rc;
 }
 
+/**
+ * _vi_sw_init - VI 软件状态初始化：管道配置、队列、原子状态、等待队列、tuning 等
+ * 在首次 vi_open 时调用，为后续 start_streaming 准备好所有软件结构
+ */
 static void _vi_sw_init(struct cvi_vi_dev *vdev)
 {
 	struct isp_ctx *ctx = &vdev->ctx;
 	struct cvi_vi_ctx *pviProcCtx = NULL;
 	u8 i = 0, j = 0;
 
+	vi_pr(VI_INFO, "_vi_sw_init: start (pipe/queue/state/wq/tuning)\n");
 	pviProcCtx = (struct cvi_vi_ctx *)(vdev->shared_mem);
 
 #if (KERNEL_VERSION(4, 15, 0) <= LINUX_VERSION_CODE)
@@ -4541,13 +4631,19 @@ static void _vi_sw_init(struct cvi_vi_dev *vdev)
 	init_waitqueue_head(&vdev->isp_dbg_wait_q);
 
 	vi_tuning_sw_init();
+	vi_pr(VI_INFO, "_vi_sw_init: done\n");
 }
 
+/**
+ * _vi_init_param - 初始化 isp_ctx 与管道默认参数、寄存器基址、队列等
+ * 在 probe 或类似初始化路径调用，早于 _vi_sw_init
+ */
 static void _vi_init_param(struct cvi_vi_dev *vdev)
 {
 	struct isp_ctx *ctx = &vdev->ctx;
 	uint8_t i = 0;
 
+	vi_pr(VI_INFO, "_vi_init_param: start\n");
 	atomic_set(&dev_open_cnt, 0);
 
 	memset(ctx, 0, sizeof(*ctx));
@@ -4610,12 +4706,17 @@ static void _vi_init_param(struct cvi_vi_dev *vdev)
 	tasklet_init(&vdev->job_work, isp_post_tasklet, (unsigned long)vdev);
 
 	atomic_set(&vdev->isp_streamon, 0);
+	vi_pr(VI_INFO, "_vi_init_param: done\n");
 }
 
+/**
+ * _vi_mempool_setup - 配置 ISP 内存池与 tuning 缓冲，在开流前调用
+ */
 static int _vi_mempool_setup(void)
 {
 	int ret = 0;
 
+	vi_pr(VI_INFO, "_vi_mempool_setup: mempool_reset + tuning_buf_setup\n");
 	_vi_mempool_reset();
 	ret = vi_tuning_buf_setup();
 
@@ -4778,6 +4879,61 @@ static void _vi_destroy_proc(struct cvi_vi_dev *vdev)
 	isp_proc_remove();
 }
 
+// 静态字符串数组
+static const char *vi_ioctl_strings[] = {
+    [VI_IOCTL_ONLINE]               = "VI_IOCTL_ONLINE",
+    [VI_IOCTL_HDR]                  = "VI_IOCTL_HDR",
+    [VI_IOCTL_3DNR]                 = "VI_IOCTL_3DNR",
+    [VI_IOCTL_TILE]                 = "VI_IOCTL_TILE",
+    [VI_IOCTL_COMPRESS_EN]          = "VI_IOCTL_COMPRESS_EN",
+    [VI_IOCTL_STS_MEM]              = "VI_IOCTL_STS_MEM",
+    [VI_IOCTL_STS_GET]              = "VI_IOCTL_STS_GET",
+    [VI_IOCTL_STS_PUT]              = "VI_IOCTL_STS_PUT",
+    [VI_IOCTL_POST_STS_GET]         = "VI_IOCTL_POST_STS_GET",
+    [VI_IOCTL_POST_STS_PUT]         = "VI_IOCTL_POST_STS_PUT",
+    [VI_IOCTL_USR_PIC_CFG]          = "VI_IOCTL_USR_PIC_CFG",
+    [VI_IOCTL_USR_PIC_ONOFF]        = "VI_IOCTL_USR_PIC_ONOFF",
+    [VI_IOCTL_USR_PIC_PUT]          = "VI_IOCTL_USR_PIC_PUT",
+    [VI_IOCTL_AE_CFG]               = "VI_IOCTL_AE_CFG",
+    [VI_IOCTL_AWB_CFG]              = "VI_IOCTL_AWB_CFG",
+    [VI_IOCTL_AF_CFG]               = "VI_IOCTL_AF_CFG",
+    [VI_IOCTL_USR_PIC_TIMING]       = "VI_IOCTL_USR_PIC_TIMING",
+    [VI_IOCTL_GET_LSC_PHY_BUF]      = "VI_IOCTL_GET_LSC_PHY_BUF",
+    [VI_IOCTL_CSIBDG_CFG]           = "VI_IOCTL_CSIBDG_CFG",
+    [VI_IOCTL_GET_TUN_ADDR]         = "VI_IOCTL_GET_TUN_ADDR",
+    [VI_IOCTL_SET_SNR_INFO]         = "VI_IOCTL_SET_SNR_INFO",
+    [VI_IOCTL_SET_SNR_CFG_NODE]     = "VI_IOCTL_SET_SNR_CFG_NODE",
+    [VI_IOCTL_GET_PIPE_DUMP]        = "VI_IOCTL_GET_PIPE_DUMP",
+    [VI_IOCTL_PUT_PIPE_DUMP]        = "VI_IOCTL_PUT_PIPE_DUMP",
+    [VI_IOCTL_SET_RGBMAP_IDX]       = "VI_IOCTL_SET_RGBMAP_IDX",
+    [VI_IOCTL_HDR_DETAIL_EN]        = "VI_IOCTL_HDR_DETAIL_EN",
+    [VI_IOCTL_YUV_BYPASS_PATH]      = "VI_IOCTL_YUV_BYPASS_PATH",
+    [VI_IOCTL_BE_ONLINE]            = "VI_IOCTL_BE_ONLINE",
+    [VI_IOCTL_SUBLVDS_PATH]         = "VI_IOCTL_SUBLVDS_PATH",
+    [VI_IOCTL_GET_IP_INFO]          = "VI_IOCTL_GET_IP_INFO",
+    [VI_IOCTL_TRIG_PRERAW]          = "VI_IOCTL_TRIG_PRERAW",
+    [VI_IOCTL_SET_PROC_CONTENT]     = "VI_IOCTL_SET_PROC_CONTENT",
+    [VI_IOCTL_SC_ONLINE]            = "VI_IOCTL_SC_ONLINE",
+    [VI_IOCTL_MMAP_GRID_SIZE]       = "VI_IOCTL_MMAP_GRID_SIZE",
+    [VI_IOCTL_RGBIR]                = "VI_IOCTL_RGBIR",
+    [VI_IOCTL_AWB_STS_GET]          = "VI_IOCTL_AWB_STS_GET",
+    [VI_IOCTL_AWB_STS_PUT]          = "VI_IOCTL_AWB_STS_PUT",
+    [VI_IOCTL_GET_FSWDR_PHY_BUF]    = "VI_IOCTL_GET_FSWDR_PHY_BUF",
+    [VI_IOCTL_GET_SCENE_INFO]       = "VI_IOCTL_GET_SCENE_INFO",
+    [VI_IOCTL_CLK_CTRL]             = "VI_IOCTL_CLK_CTRL",
+    [VI_IOCTL_GET_BUF_SIZE]         = "VI_IOCTL_GET_BUF_SIZE",
+    [VI_IOCTL_SET_DMA_BUF_INFO]     = "VI_IOCTL_SET_DMA_BUF_INFO",
+    [VI_IOCTL_ENQ_BUF]              = "VI_IOCTL_ENQ_BUF",
+    [VI_IOCTL_DQEVENT]              = "VI_IOCTL_DQEVENT",
+    [VI_IOCTL_START_STREAMING]      = "VI_IOCTL_START_STREAMING",
+    [VI_IOCTL_STOP_STREAMING]       = "VI_IOCTL_STOP_STREAMING",
+    [VI_IOCTL_SET_SLICE_BUF_EN]     = "VI_IOCTL_SET_SLICE_BUF_EN",
+    [VI_IOCTL_GET_CLUT_TBL_IDX]     = "VI_IOCTL_GET_CLUT_TBL_IDX",
+    [VI_IOCTL_SDK_CTRL]             = "VI_IOCTL_SDK_CTRL",
+    [VI_IOCTL_GET_RGBMAP_LE_PHY_BUF] = "VI_IOCTL_GET_RGBMAP_LE_PHY_BUF",
+    [VI_IOCTL_GET_RGBMAP_SE_PHY_BUF] = "VI_IOCTL_GET_RGBMAP_SE_PHY_BUF",
+};
+
 /*******************************************************
  *  File operations for core
  ******************************************************/
@@ -4787,6 +4943,7 @@ static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 	long rc = -EINVAL;
 	struct isp_ctx *ctx = &vdev->ctx;
 
+  pr_info("- soph_vi - VI_S_CTRL, %s id: %d\n", vi_ioctl_strings[id], id);
 	switch (id) {
 	case VI_IOCTL_SDK_CTRL:
 	{
@@ -4944,6 +5101,7 @@ static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 		if (ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw) {
 #if 1
 			u64 phy_addr = p->value64;
+      pr_info("- VI - USR_PIC_PUT: phys_addr: %llx\n", phy_addr);
 			ispblk_dma_setaddr(ctx, ISP_BLK_ID_DMA_CTL4, phy_addr);
 			vdev->usr_pic_phy_addr[0] = phy_addr;
 			vi_pr(VI_INFO, "\nvdev->usr_pic_phy_addr(0x%llx)\n", vdev->usr_pic_phy_addr[0]);
@@ -5225,6 +5383,7 @@ static long _vi_g_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 	long rc = -EINVAL;
 	struct isp_ctx *ctx = &vdev->ctx;
 
+  pr_info("- soph_vi - VI_G_CTRL, %s id: %d\n", vi_ioctl_strings[id], id);
 	switch (id) {
 	case VI_IOCTL_STS_GET:
 	{
@@ -5310,6 +5469,7 @@ static long _vi_g_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 
 		isp_mem->phy_addr = isp_bufpool[isp_mem->raw_num].lsc;
 		isp_mem->size = ispblk_dma_config(ctx, ISP_BLK_ID_DMA_CTL24, isp_mem->raw_num, 0);
+    pr_info("isp mem: phys addr: %llx size: %x\n", isp_mem->phy_addr, isp_mem->size);
 
 		if (copy_to_user(p->ptr, isp_mem, sizeof(struct cvi_vip_memblock)) != 0) {
 			vfree(isp_mem);
@@ -5617,6 +5777,10 @@ long vi_ioctl(struct file *file, u_int cmd, u_long arg)
 	return ret;
 }
 
+/**
+ * vi_open - 字符设备打开入口；首次打开时做时钟使能、vi_init、_vi_sw_init
+ * 用户态 open("/dev/vi0") 会走到此处，后续 start_streaming 才真正开流
+ */
 int vi_open(struct inode *inode, struct file *file)
 {
 	int ret = 0;
@@ -5625,6 +5789,7 @@ int vi_open(struct inode *inode, struct file *file)
 	vdev = container_of(inode->i_cdev, struct cvi_vi_dev, cdev);
 	file->private_data = vdev;
 
+	vi_pr(VI_INFO, "vi_open: dev_open_cnt=%d\n", atomic_read(&dev_open_cnt));
 	if (!atomic_read(&dev_open_cnt)) {
 #ifndef FPGA_PORTING
 		_vi_clk_ctrl(vdev, true);
@@ -5633,7 +5798,7 @@ int vi_open(struct inode *inode, struct file *file)
 
 		_vi_sw_init(vdev);
 
-		vi_pr(VI_INFO, "-\n");
+		vi_pr(VI_INFO, "vi_open: first open done (clk/init/sw_init)\n");
 	}
 
 	atomic_inc(&dev_open_cnt);
@@ -5641,11 +5806,15 @@ int vi_open(struct inode *inode, struct file *file)
 	return ret;
 }
 
+/**
+ * vi_release - 字符设备关闭；最后一个关闭时释放 SDK 与驱动资源
+ */
 int vi_release(struct inode *inode, struct file *file)
 {
 	int ret = 0;
 
 	atomic_dec(&dev_open_cnt);
+	vi_pr(VI_INFO, "vi_release: dev_open_cnt=%d\n", atomic_read(&dev_open_cnt));
 
 	if (!atomic_read(&dev_open_cnt)) {
 		struct cvi_vi_dev *vdev;
@@ -5656,7 +5825,7 @@ int vi_release(struct inode *inode, struct file *file)
 
 		_vi_release_op(vdev);
 
-		vi_pr(VI_INFO, "-\n");
+		vi_pr(VI_INFO, "vi_release: last close done (sdk_release/release_op)\n");
 	}
 
 	return ret;
@@ -5724,12 +5893,17 @@ unsigned int vi_poll(struct file *file, struct poll_table_struct *wait)
 	return res;
 }
 
+/**
+ * vi_cb - VI 模块回调入口，由 VPSS/DWA 等模块调用
+ * 命令: QBUF_TRIGGER(触发 tasklet)、SC_FRM_DONE(在线一帧完成)、SET_VIVPSSMODE、RESET_ISP、GDC_OP_DONE 等
+ */
 int vi_cb(void *dev, enum ENUM_MODULES_ID caller, u32 cmd, void *arg)
 {
 	struct cvi_vi_dev *vdev = (struct cvi_vi_dev *)dev;
 	struct isp_ctx *ctx = &vdev->ctx;
 	int rc = -1;
 
+	vi_pr(VI_INFO, "vi_cb: caller=%d cmd=%u\n", caller, cmd);
 	switch (cmd) {
 	case VI_CB_QBUF_TRIGGER:
 		vi_pr(VI_INFO, "isp_ol_sc_trig_post\n");
@@ -5841,6 +6015,10 @@ static void _vi_update_chnRealFrameRate(VI_CHN_STATUS_S *pstViChnStatus)
 	vi_pr(VI_DBG, "FrameRate=%d\n", pstViChnStatus->u32FrameRate);
 }
 #endif
+/**
+ * _vi_event_handler_thread - 事件处理线程：等待帧完成事件，做 DQBUF 回调、VB 归还等
+ * 由 postraw 完成或类似路径 wake_up，与 MW 的取流流程配合
+ */
 static int _vi_event_handler_thread(void * arg)
 {
 	struct cvi_vi_dev *vdev = (struct cvi_vi_dev *)arg;
@@ -5854,6 +6032,7 @@ static int _vi_event_handler_thread(void * arg)
 	CVI_U8 count = 0;
 #endif
 
+	vi_pr(VI_INFO, "_vi_event_handler_thread: started (timeout=%ums)\n", timeout);
 	while (1) {
 #ifdef VI_PROFILE
 		_vi_update_chnRealFrameRate(&gViCtx->chnStatus[chn.s32ChnId]);
@@ -6443,12 +6622,17 @@ void _vi_err_handler(struct cvi_vi_dev *vdev, const enum cvi_isp_raw err_raw_num
 	_vi_err_retrig_preraw(vdev, err_raw_num);
 }
 
+/**
+ * _vi_err_handler_thread - ISP 错误处理线程：溢出等错误时复位 ISP、重配、重新触发 PreRaw
+ * 由 vi_cb(VI_CB_RESET_ISP) 或内部错误路径 wake_up
+ */
 static int _vi_err_handler_thread(void *arg)
 {
 	struct cvi_vi_dev *vdev = (struct cvi_vi_dev *)arg;
 	enum cvi_isp_raw err_raw_num;
 	enum E_VI_TH th_id = E_VI_TH_ERR_HANDLER;
 
+	vi_pr(VI_INFO, "_vi_err_handler_thread: started\n");
 	while (1) {
 		wait_event(vdev->vi_th[th_id].wq, vdev->vi_th[th_id].flag != 0 || kthread_should_stop());
 
@@ -6735,11 +6919,16 @@ u32 isp_err_chk(
 	return ret;
 }
 
+/**
+ * isp_post_tasklet - 软中断下半部：处理 YUV 触发与 _post_hw_enque（将后端输出入队、更新 DMA/控制等）
+ * 由 job_work 调度，被 QBUF_TRIGGER、SC_FRM_DONE 等 vi_cb 或帧完成路径触发
+ */
 void isp_post_tasklet(unsigned long data)
 {
 	struct cvi_vi_dev *vdev = (struct cvi_vi_dev *)data;
 	u8 chn_num = 0, raw_num = 0;
 
+	vi_pr(VI_DBG, "isp_post_tasklet: run (yuv_trigger=%d)\n", vdev->is_yuv_trigger);
 	if (unlikely(vdev->is_yuv_trigger)) {
 		for (raw_num = ISP_PRERAW_A; raw_num < ISP_PRERAW_MAX; raw_num++) {
 			for (chn_num = ISP_FE_CH0; chn_num < ISP_FE_CHN_MAX; chn_num++) {
@@ -6756,6 +6945,10 @@ void isp_post_tasklet(unsigned long data)
 	_post_hw_enque(vdev);
 }
 
+/**
+ * _vi_preraw_thread - PreRaw 处理线程：从 pre_raw_num_q 取帧号，执行 sensor 配置出队、tuning 更新、前后端入队
+ * 每帧 SOF 或类似事件会往队列投递 raw_num，并 wake_up 本线程
+ */
 static int _vi_preraw_thread(void *arg)
 {
 	struct cvi_vi_dev *vdev = (struct cvi_vi_dev *)arg;
@@ -6768,6 +6961,7 @@ static int _vi_preraw_thread(void *arg)
 	u32 enq_num = 0, i = 0;
 	enum E_VI_TH th_id = E_VI_TH_PRERAW;
 
+	vi_pr(VI_INFO, "_vi_preraw_thread: started\n");
 	while (1) {
 		wait_event(vdev->vi_th[th_id].wq, vdev->vi_th[th_id].flag != 0 || kthread_should_stop());
 		vdev->vi_th[th_id].flag = 0;
