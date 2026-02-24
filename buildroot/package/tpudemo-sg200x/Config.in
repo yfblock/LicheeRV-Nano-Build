@@ -1,4 +1,0 @@
-config BR2_PACKAGE_TPUDEMO_SG200X
-	bool "tpudemo-sg200x"
-	help
-	  some tpu demo program for sg200x

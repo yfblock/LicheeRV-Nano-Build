@@ -1,4 +1,0 @@
-config BR2_PACKAGE_CVITEK_RISCV64_MUSL_SYSROOT
-	bool "cvitek-riscv64-musl-sysroot"
-	help
-	  use for run cvitek middleware on glibc system
