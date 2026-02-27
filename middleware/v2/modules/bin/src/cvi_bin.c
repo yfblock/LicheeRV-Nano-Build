@@ -86,7 +86,8 @@ static pfn_cvi_bin_getparamfrombin getParamFromBinFunc[CVI_BIN_ID_MAX] = {
 	vpss_bin_getparamfrombin, /*CVI_BIN_ID_VPSS*/
 	NULL, /*CVI_BIN_ID_VDEC*/
 	NULL, /*CVI_BIN_ID_VENC*/
-	vo_bin_getparamfrombin, /*CVI_BIN_ID_VO*/
+	// vo_bin_getparamfrombin, /*CVI_BIN_ID_VO*/
+	NULL,
 };
 static pfn_cvi_bin_setparamtobin setParamToBinFunc[CVI_BIN_ID_MAX] = {
 	header_bin_setBinParam, /*CVI_BIN_ID_HEADER*/

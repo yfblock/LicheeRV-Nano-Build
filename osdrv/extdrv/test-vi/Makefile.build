@@ -1,0 +1,43 @@
+obj-m := test_vi.o
+
+# 复制自 interdrv/v2/vi/chip/mars/chip.mk 的对象列表（只针对 MARS）
+test_vi-objs := common/vi_core.o \
+		chip/mars/vi.o \
+		chip/mars/vi_ext.o \
+		chip/mars/vi_sdk_layer.o \
+		chip/mars/vi_isp_buf_ctrl.o \
+		chip/mars/vi_raw_dump.o \
+		chip/mars/vip/vi_drv.o \
+		chip/mars/vip/vi_subsys_ctrl.o \
+		chip/mars/vip/vi_fe_ip_ctrl.o \
+		chip/mars/vip/vi_be_ip_ctrl.o \
+		chip/mars/vip/vi_raw_ip_ctrl.o \
+		chip/mars/vip/vi_rgb_ip_ctrl.o \
+		chip/mars/vip/vi_yuv_ip_ctrl.o \
+		chip/mars/vip/vi_tun_ip_ctrl.o \
+		chip/mars/vip/vi_ip_test_case.o \
+		chip/mars/vip/vi_perf_chk.o \
+		chip/mars/proc/vi_proc.o \
+		chip/mars/proc/vi_dbg_proc.o \
+		chip/mars/proc/vi_isp_proc.o
+
+# 头文件搜索路径（参考 interdrv/v2/vi/Makefile）
+ccflags-y += -I$(src)/chip/mars -I$(src)/common
+ccflags-y += -I$(src)/../../../interdrv/v2/include/common/uapi
+ccflags-y += -I$(src)/../../../interdrv/v2/include/chip/mars/uapi
+ccflags-y += -I$(src)/../../../interdrv/v2/include/common/kapi
+ccflags-y += -I$(src)/../../../interdrv/v2/include
+ccflags-y += -I$(src)/../../../interdrv/v2/base
+ccflags-y += -I$(src)/../../../interdrv/v2/base/chip/mars
+ccflags-y += -I$(src)/../../../interdrv/v2/sys/common
+ccflags-y += -I$(src)/../../../interdrv/v2/sys/common/uapi
+ccflags-y += -I$(srctree)/drivers/tee
+ccflags-y += -I$(srctree)/drivers/staging/android
+
+ccflags-y += -Wall -Wextra -Werror -Wno-unused-parameter -Wno-sign-compare
+
+# 依赖 base/sys 等模块导出的符号（路径基于 $(src)=.../extdrv/test-vi/build）
+KBUILD_EXTRA_SYMBOLS = $(src)/../../../interdrv/v2/base/Module.symvers
+KBUILD_EXTRA_SYMBOLS += $(src)/../../../interdrv/v2/sys/Module.symvers
+KBUILD_EXTRA_SYMBOLS += $(src)/../../../interdrv/v2/Module.symvers
+

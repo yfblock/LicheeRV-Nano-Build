@@ -1,0 +1,17 @@
+obj-m := test_mipi_rx.o
+test_mipi_rx-objs := chip/mars/cif.o chip/mars/drv/cif_drv.o
+
+# 头文件搜索路径（参考原 interdrv/v2/cif 模块）
+ccflags-y += -I$(src)/chip/mars
+ccflags-y += -I$(src)/chip/mars/drv
+ccflags-y += -I$(src)/chip/mars/drv/inc
+ccflags-y += -I$(src)/../../../interdrv/v2/include/common/uapi
+ccflags-y += -I$(src)/../../../interdrv/v2/include/chip/mars/uapi
+ccflags-y += -I$(src)/../../../interdrv/v2/include/common/kapi
+ccflags-y += -I$(src)/../../../interdrv/v2/base/chip/mars
+# Linux pinctrl 头文件
+ccflags-y += -I$(srctree)/drivers/pinctrl/cvitek
+
+# 依赖 base 模块导出的 vip_sys 等符号
+KBUILD_EXTRA_SYMBOLS = $(src)/../../../interdrv/v2/base/Module.symvers
+
