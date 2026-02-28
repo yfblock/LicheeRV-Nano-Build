@@ -4839,6 +4839,23 @@ static const char *_vi_s_ctrl_id_to_string(u32 id)
 /*******************************************************
  *  File operations for core
  ******************************************************/
+/* sensor_test 实际用到的 S_CTRL id（由 deploy 流程 dmesg 采集） */
+static bool _vi_s_ctrl_id_allowed(u32 id)
+{
+	switch (id) {
+	case VI_IOCTL_SDK_CTRL:      /* 48 */
+	case VI_IOCTL_STS_PUT:       /* 7 */
+	case VI_IOCTL_POST_STS_PUT:  /* 9 */
+	case VI_IOCTL_SET_SNR_INFO:  /* 20 */
+	case VI_IOCTL_SET_SNR_CFG_NODE: /* 21 */
+	case VI_IOCTL_MMAP_GRID_SIZE:   /* 33 */
+	case VI_IOCTL_SET_DMA_BUF_INFO: /* 41 */
+		return true;
+	default:
+		return false;
+	}
+}
+
 static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 {
 	u32 id = p->id;
@@ -4846,6 +4863,9 @@ static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 	struct isp_ctx *ctx = &vdev->ctx;
 
 	pr_info("_vi_s_ctrl id=%u (%s)\n", id, _vi_s_ctrl_id_to_string(id));
+
+	if (!_vi_s_ctrl_id_allowed(id))
+		return -EINVAL;
 
 	switch (id) {
 	case VI_IOCTL_SDK_CTRL:
@@ -4855,52 +4875,23 @@ static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 	}
 
 	case VI_IOCTL_HDR:
-	{
-#if defined( __SOC_PHOBOS__)
-		if (p->value == true) {
-			vi_pr(VI_ERR, "only support linear mode.\n");
-			break;
-		}
-#endif
-		ctx->is_hdr_on = p->value;
-		ctx->isp_pipe_cfg[ISP_PRERAW_A].is_hdr_on = p->value;
-		vi_pr(VI_INFO, "HDR_ON(%d) for test\n", ctx->is_hdr_on);
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_HDR_DETAIL_EN:
-	{
-		u32 val = 0, snr_num = 0, enable = 0;
-
-		val = p->value;
-		snr_num = val & 0x3; //bit0~1: snr_num
-		enable = val & 0x4; //bit2: enable/disable
-
-		if (snr_num < ISP_PRERAW_VIRT_MAX) {
-			ctx->isp_pipe_cfg[snr_num].is_hdr_detail_en = enable;
-			vi_pr(VI_WARN, "HDR_DETAIL_EN(%d)\n",
-				ctx->isp_pipe_cfg[snr_num].is_hdr_detail_en);
-			rc = 0;
-		}
-
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_3DNR:
-		ctx->is_3dnr_on = p->value;
-		vi_pr(VI_INFO, "is_3dnr_on=%d\n", ctx->is_3dnr_on);
-		rc = 0;
+		/* 未在白名单 */
 		break;
 
 	case VI_IOCTL_TILE:
-		rc = 0;
+		/* 未在白名单 */
 		break;
 
 	case VI_IOCTL_COMPRESS_EN:
-		ctx->is_dpcm_on = p->value;
-		vi_pr(VI_INFO, "ISP_COMPRESS_ON(%d)\n", ctx->is_dpcm_on);
-		rc = 0;
+		/* 未在白名单 */
 		break;
 
 	case VI_IOCTL_STS_PUT:
@@ -4940,120 +4931,31 @@ static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 	}
 
 	case VI_IOCTL_USR_PIC_CFG:
-	{
-		struct cvi_isp_usr_pic_cfg cfg;
-
-		if (copy_from_user(&cfg, p->ptr, sizeof(struct cvi_isp_usr_pic_cfg)))
-			break;
-
-		if ((cfg.crop.width < 32) || (cfg.crop.width > 4096)
-			|| (cfg.crop.left > cfg.crop.width) || (cfg.crop.top > cfg.crop.height)) {
-			vi_pr(VI_ERR, "USR_PIC_CFG:(Invalid Param) w(%d) h(%d) x(%d) y(%d)",
-				cfg.crop.width, cfg.crop.height, cfg.crop.left, cfg.crop.top);
-		} else {
-			vdev->usr_fmt = cfg.fmt;
-			vdev->usr_crop = cfg.crop;
-
-			vdev->ctx.isp_pipe_cfg[ISP_PRERAW_A].csibdg_width	= vdev->usr_fmt.width;
-			vdev->ctx.isp_pipe_cfg[ISP_PRERAW_A].csibdg_height	= vdev->usr_fmt.height;
-			vdev->ctx.isp_pipe_cfg[ISP_PRERAW_A].max_width		= vdev->usr_fmt.width;
-			vdev->ctx.isp_pipe_cfg[ISP_PRERAW_A].max_height 	= vdev->usr_fmt.height;
-
-			rc = 0;
-		}
-
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_USR_PIC_ONOFF:
-	{
-		vdev->isp_source = p->value;
-		ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw =
-			(vdev->isp_source == CVI_ISP_SOURCE_FE);
-
-		vi_pr(VI_INFO, "vdev->isp_source=%d\n", vdev->isp_source);
-		vi_pr(VI_INFO, "ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw=%d\n",
-			ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw);
-
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_PUT_PIPE_DUMP:
-	{
-		u32 raw_num = 0;
-
-		raw_num = p->value;
-
-		if (isp_byr[raw_num]) {
-			vfree(isp_byr[raw_num]);
-			isp_byr[raw_num] = NULL;
-		}
-
-		if (isp_byr_se[raw_num]) {
-			vfree(isp_byr_se[raw_num]);
-			isp_byr_se[raw_num] = NULL;
-		}
-
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_USR_PIC_PUT:
-	{
-		if (ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw) {
-#if 1
-			u64 phy_addr = p->value64;
-			ispblk_dma_setaddr(ctx, ISP_BLK_ID_DMA_CTL4, phy_addr);
-			vdev->usr_pic_phy_addr[0] = phy_addr;
-			vi_pr(VI_INFO, "\nvdev->usr_pic_phy_addr(0x%llx)\n", vdev->usr_pic_phy_addr[0]);
-			rc = 0;
-
-			if (vdev->usr_pic_delay)
-				usr_pic_timer_init(vdev);
-#else //for vip_FPGA test
-			uint64_t bufaddr = 0;
-			uint32_t bufsize = 0;
-
-			bufaddr = _mempool_get_addr();
-			bufsize = ispblk_dma_config(ctx, ISP_BLK_ID_RDMA0, bufaddr);
-			_mempool_pop(bufsize);
-
-			vi_pr(VI_WARN, "\nRDMA0 base_addr=0x%x\n", bufaddr);
-
-			vdev->usr_pic_phy_addr = bufaddr;
-			rc = 0;
-#endif
-		}
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_USR_PIC_TIMING:
-	{
-		if (p->value > 30)
-			vdev->usr_pic_delay = msecs_to_jiffies(33);
-		else if (p->value > 0)
-			vdev->usr_pic_delay = msecs_to_jiffies(1000 / p->value);
-		else
-			vdev->usr_pic_delay = 0;
-
-		if (!vdev->usr_pic_delay)
-			usr_pic_time_remove();
-
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_ONLINE:
-		ctx->is_offline_postraw = !p->value;
-		vi_pr(VI_INFO, "is_offline_postraw=%d\n", ctx->is_offline_postraw);
-		rc = 0;
+		/* 未在白名单 */
 		break;
 
 	case VI_IOCTL_BE_ONLINE:
-		ctx->is_offline_be = !p->value;
-		vi_pr(VI_INFO, "is_offline_be=%d\n", ctx->is_offline_be);
-		rc = 0;
+		/* 未在白名单 */
 		break;
 
 	case VI_IOCTL_SET_SNR_CFG_NODE:
@@ -5142,82 +5044,20 @@ static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 	}
 
 	case VI_IOCTL_SET_PROC_CONTENT:
-	{
-		struct isp_proc_cfg proc_cfg;
-		int rval = 0;
-
-		rval = copy_from_user(&proc_cfg, p->ptr, sizeof(struct isp_proc_cfg));
-		if ((rval != 0) || (proc_cfg.buffer_size == 0))
-			break;
-		isp_proc_setProcContent(proc_cfg.buffer, proc_cfg.buffer_size);
-
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_SC_ONLINE:
-	{
-		struct cvi_isp_sc_online sc_online;
-
-		if (copy_from_user(&sc_online, p->ptr, sizeof(struct cvi_isp_sc_online)) != 0)
-			break;
-
-		//Currently both sensor are needed to be online or offline at same time.
-		ctx->isp_pipe_cfg[sc_online.raw_num].is_offline_scaler = !sc_online.is_sc_online;
-		vi_pr(VI_WARN, "raw_num_%d set is_offline_scaler:%d\n",
-				  sc_online.raw_num, !sc_online.is_sc_online);
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_AWB_STS_PUT:
-	{
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_ENQ_BUF:
-	{
-		struct vi_buffer    buf;
-		struct cvi_isp_buf *qbuf;
-		u8 pre_trig = false, post_trig = false;
-
-		if (copy_from_user(&buf, p->ptr, sizeof(buf))) {
-			vi_pr(VI_ERR, "VI_IOCTL_ENQ_BUF, copy_from_user failed.\n");
-			rc = -ENOMEM;
-			break;
-		}
-
-		qbuf = kzalloc(sizeof(struct cvi_isp_buf), GFP_ATOMIC);
-		if (qbuf == NULL) {
-			vi_pr(VI_ERR, "QBUF kzalloc size(%zu) fail\n", sizeof(struct cvi_isp_buf));
-			rc = -ENOMEM;
-			break;
-		}
-
-		vdev->chn_id = buf.index;
-		memcpy(&qbuf->buf, &buf, sizeof(buf));
-
-		if (_is_all_online(ctx) &&
-			cvi_isp_rdy_buf_empty(vdev, ISP_PRERAW_A) &&
-			vdev->pre_fe_frm_num[ISP_PRERAW_A][ISP_FE_CH0] > 0) {
-			pre_trig = true;
-		} else if (_is_fe_be_online(ctx)) { //fe->be->dram->post
-			if (cvi_isp_rdy_buf_empty(vdev, vdev->chn_id) &&
-				vdev->postraw_frame_number[ISP_PRERAW_A] > 0) {
-				vi_pr(VI_DBG, "chn_%d buf empty, trigger post\n", vdev->chn_id);
-				post_trig = true;
-			}
-		}
-
-		cvi_isp_buf_queue(vdev, qbuf);
-
-		if (pre_trig || post_trig)
-			tasklet_hi_schedule(&vdev->job_work);
-
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_SET_DMA_BUF_INFO:
 	{
@@ -5239,44 +5079,39 @@ static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 	}
 
 	case VI_IOCTL_START_STREAMING:
-	{
-		if (vi_start_streaming(vdev)) {
-			vi_pr(VI_ERR, "Failed to vi start streaming\n");
-			break;
-		}
-
-		atomic_set(&vdev->isp_streamon, 1);
-
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_STOP_STREAMING:
-	{
-		if (vi_stop_streaming(vdev)) {
-			vi_pr(VI_ERR, "Failed to vi stop streaming\n");
-			break;
-		}
-
-		atomic_set(&vdev->isp_streamon, 0);
-
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_SET_SLICE_BUF_EN:
-	{
-		ctx->is_slice_buf_on = p->value;
-		vi_pr(VI_INFO, "ISP_SLICE_BUF_ON(%d)\n", ctx->is_slice_buf_on);
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	default:
 		break;
 	}
 
 	return rc;
+}
+
+/* sensor_test 实际用到的 G_CTRL id（由 deploy 流程 dmesg 采集） */
+static bool _vi_g_ctrl_id_allowed(u32 id)
+{
+	switch (id) {
+	case VI_IOCTL_STS_GET:        /* 6 */
+	case VI_IOCTL_POST_STS_GET:   /* 8 */
+	case VI_IOCTL_GET_TUN_ADDR:   /* 19 */
+	case VI_IOCTL_GET_SCENE_INFO: /* 38 */
+	case VI_IOCTL_GET_BUF_SIZE:   /* 40 */
+	case VI_IOCTL_DQEVENT:        /* 43 */
+	case VI_IOCTL_GET_CLUT_TBL_IDX: /* 47 */
+		return true;
+	default:
+		return false;
+	}
 }
 
 static long _vi_g_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
@@ -5286,6 +5121,9 @@ static long _vi_g_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 	struct isp_ctx *ctx = &vdev->ctx;
 
 	vi_pr(VI_INFO, "_vi_g_ctrl id=%u (%s)\n", id, _vi_s_ctrl_id_to_string(id));
+
+	if (!_vi_g_ctrl_id_allowed(id))
+		return -EINVAL;
 
 	switch (id) {
 	case VI_IOCTL_STS_GET:
@@ -5327,123 +5165,24 @@ static long _vi_g_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 	}
 
 	case VI_IOCTL_STS_MEM:
-	{
-		struct cvi_isp_sts_mem sts_mem;
-		int rval = 0;
-		u8 raw_num = 0;
-
-		if (copy_from_user(&sts_mem, p->ptr, sizeof(struct cvi_isp_sts_mem)) != 0)
-			break;
-
-		raw_num = sts_mem.raw_num;
-		if (raw_num >= ISP_PRERAW_VIRT_MAX) {
-			vi_pr(VI_ERR, "sts_mem wrong raw_num(%d)\n", raw_num);
-			break;
-		}
-
-#if 0//PORTING_TEST //test only
-		isp_bufpool[raw_num].sts_mem[0].ae_le.phy_addr = 0x11223344;
-		isp_bufpool[raw_num].sts_mem[0].ae_le.size = 44800;
-		isp_bufpool[raw_num].sts_mem[0].af.phy_addr = 0xaabbccdd;
-		isp_bufpool[raw_num].sts_mem[0].af.size = 16320;
-		isp_bufpool[raw_num].sts_mem[0].awb.phy_addr = 0x12345678;
-		isp_bufpool[raw_num].sts_mem[0].awb.size = 71808;
-#endif
-		rval = copy_to_user(p->ptr,
-					isp_bufpool[raw_num].sts_mem,
-					sizeof(struct cvi_isp_sts_mem) * 2);
-
-		if (rval)
-			vi_pr(VI_ERR, "fail copying %d bytes of ISP_STS_MEM info\n", rval);
-		else
-			rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_GET_LSC_PHY_BUF:
-	{
-		struct cvi_vip_memblock *isp_mem;
-
-		isp_mem = vmalloc(sizeof(struct cvi_vip_memblock));
-		if (copy_from_user(isp_mem, p->ptr, sizeof(struct cvi_vip_memblock)) != 0) {
-			vfree(isp_mem);
-			break;
-		}
-
-		isp_mem->phy_addr = isp_bufpool[isp_mem->raw_num].lsc;
-		isp_mem->size = ispblk_dma_config(ctx, ISP_BLK_ID_DMA_CTL24, isp_mem->raw_num, 0);
-
-		if (copy_to_user(p->ptr, isp_mem, sizeof(struct cvi_vip_memblock)) != 0) {
-			vfree(isp_mem);
-			break;
-		}
-
-		vfree(isp_mem);
-
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_GET_PIPE_DUMP:
-	{
-		struct cvi_vip_isp_raw_blk dump[2];
-
-		if (copy_from_user(&dump[0], p->ptr, sizeof(struct cvi_vip_isp_raw_blk) * 2) != 0)
-			break;
-
-#if 0//PORTING_TEST //test only
-		dump[0].raw_dump.phy_addr = 0x11223344;
-		if (copy_to_user(p->ptr, &dump[0], sizeof(struct cvi_vip_isp_raw_blk) * 2) != 0)
-			break;
-		rc = 0;
-#else
-		rc = isp_raw_dump(vdev, &dump[0]);
-		if (copy_to_user(p->ptr, &dump[0], sizeof(struct cvi_vip_isp_raw_blk) * 2) != 0)
-			break;
-#endif
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_AWB_STS_GET:
-	{
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_GET_FSWDR_PHY_BUF:
-	{
-		struct cvi_vip_memblock *isp_mem;
-
-		isp_mem = vmalloc(sizeof(struct cvi_vip_memblock));
-		if (copy_from_user(isp_mem, p->ptr, sizeof(struct cvi_vip_memblock)) != 0) {
-			vfree(isp_mem);
-			break;
-		}
-
-		isp_mem->size = sizeof(struct cvi_vip_isp_fswdr_report);
-		if (isp_bufpool[isp_mem->raw_num].fswdr_rpt == NULL) {
-			isp_bufpool[isp_mem->raw_num].fswdr_rpt = kmalloc(
-				isp_mem->size, GFP_DMA | GFP_KERNEL);
-			if (isp_bufpool[isp_mem->raw_num].fswdr_rpt == NULL) {
-				vi_pr(VI_ERR, "isp_bufpool[%d].fswdr_rpt alloc size(%d) fail\n",
-					isp_mem->raw_num, isp_mem->size);
-				vfree(isp_mem);
-				break;
-			}
-		}
-		isp_mem->vir_addr = isp_bufpool[isp_mem->raw_num].fswdr_rpt;
-		isp_mem->phy_addr = virt_to_phys(isp_bufpool[isp_mem->raw_num].fswdr_rpt);
-
-		if (copy_to_user(p->ptr, isp_mem, sizeof(struct cvi_vip_memblock)) != 0) {
-			vfree(isp_mem);
-			break;
-		}
-
-		vfree(isp_mem);
-
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_GET_SCENE_INFO:
 	{
@@ -5587,63 +5326,16 @@ static long _vi_g_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 	}
 
 	case VI_IOCTL_GET_IP_INFO:
-	{
-		if (copy_to_user(p->ptr, &ip_info_list, sizeof(struct ip_info) * IP_INFO_ID_MAX) != 0) {
-			vi_pr(VI_ERR, "Failed to copy ip_info_list\n");
-			break;
-		}
-
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_GET_RGBMAP_LE_PHY_BUF:
-	{
-		struct cvi_vip_memblock *isp_mem;
-
-		isp_mem = vmalloc(sizeof(struct cvi_vip_memblock));
-		if (copy_from_user(isp_mem, p->ptr, sizeof(struct cvi_vip_memblock)) != 0) {
-			vfree(isp_mem);
-			break;
-		}
-
-		isp_mem->phy_addr = isp_bufpool[isp_mem->raw_num].rgbmap_le[0];
-		isp_mem->size = ispblk_dma_buf_get_size(ctx, ISP_BLK_ID_DMA_CTL10, isp_mem->raw_num);
-
-		if (copy_to_user(p->ptr, isp_mem, sizeof(struct cvi_vip_memblock)) != 0) {
-			vfree(isp_mem);
-			break;
-		}
-
-		vfree(isp_mem);
-
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	case VI_IOCTL_GET_RGBMAP_SE_PHY_BUF:
-	{
-		struct cvi_vip_memblock *isp_mem;
-
-		isp_mem = vmalloc(sizeof(struct cvi_vip_memblock));
-		if (copy_from_user(isp_mem, p->ptr, sizeof(struct cvi_vip_memblock)) != 0) {
-			vfree(isp_mem);
-			break;
-		}
-
-		isp_mem->phy_addr = isp_bufpool[isp_mem->raw_num].rgbmap_se[0];
-		isp_mem->size = ispblk_dma_buf_get_size(ctx, ISP_BLK_ID_DMA_CTL11, isp_mem->raw_num);
-
-		if (copy_to_user(p->ptr, isp_mem, sizeof(struct cvi_vip_memblock)) != 0) {
-			vfree(isp_mem);
-			break;
-		}
-
-		vfree(isp_mem);
-
-		rc = 0;
+		/* 未在白名单 */
 		break;
-	}
 
 	default:
 		break;
@@ -5660,6 +5352,8 @@ long vi_ioctl(struct file *file, u_int cmd, u_long arg)
 
 	if (copy_from_user(&p, (void __user *)arg, sizeof(struct vi_ext_control)))
 		return -EINVAL;
+
+	pr_info("[test_vi] vi_ioctl cmd=0x%x id=%u value=%u\n", cmd, p.id, p.value);
 
 	switch (cmd) {
 	case VI_IOC_S_CTRL:

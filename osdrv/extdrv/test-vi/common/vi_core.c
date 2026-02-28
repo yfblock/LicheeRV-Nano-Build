@@ -31,6 +31,7 @@ void _reg_write_mask(uintptr_t addr, u32 mask, u32 data)
 
 static long vi_core_ioctl(struct file *filp, u_int cmd, u_long arg)
 {
+	pr_info("[test_vi] ioctl cmd=0x%x arg=%lu\n", cmd, arg);
 	return vi_ioctl(filp, cmd, arg);
 }
 
@@ -46,16 +47,22 @@ static long compat_ptr_ioctl(struct file *file, unsigned int cmd, unsigned long 
 
 static int vi_core_open(struct inode *inode, struct file *filp)
 {
+	pr_info("[test_vi] open\n");
 	return vi_open(inode, filp);
 }
 
 static int vi_core_release(struct inode *inode, struct file *filp)
 {
+	pr_info("[test_vi] release\n");
 	return vi_release(inode, filp);
 }
 
 static int vi_core_mmap(struct file *filp, struct vm_area_struct *vm)
 {
+	pr_info("[test_vi] mmap start=0x%lx size=%lu off=0x%lx\n",
+		(unsigned long)vm->vm_start,
+		(unsigned long)(vm->vm_end - vm->vm_start),
+		(unsigned long)(vm->vm_pgoff << PAGE_SHIFT));
 	return vi_mmap(filp, vm);
 }
 
