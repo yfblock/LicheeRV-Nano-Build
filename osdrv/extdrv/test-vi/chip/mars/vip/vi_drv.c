@@ -1610,9 +1610,6 @@ void ispblk_post_cfg_update(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num)
 	ispblk_rawtop_config(ctx, raw_num);
 	ispblk_rgbtop_config(ctx, raw_num);
 	ispblk_yuvtop_config(ctx, raw_num);
-#if 0
-	_ispblk_lsc_cfg_update(ctx, raw_num);
-#endif
 	//LTM grid_size update
 	{
 		uintptr_t ltm = ctx->phys_regs[ISP_BLK_ID_HDRLTM];

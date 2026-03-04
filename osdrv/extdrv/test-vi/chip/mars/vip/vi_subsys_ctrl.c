@@ -45,15 +45,6 @@ void ispblk_preraw_fe_config(struct isp_ctx *ctx, enum cvi_isp_raw raw_num)
 	rgbmap_le.bits.LE_RGBMP_V_GRID_SIZE = g_h_bit[raw_num];
 	rgbmap_se.bits.SE_RGBMP_H_GRID_SIZE = g_w_bit[raw_num];
 	rgbmap_se.bits.SE_RGBMP_V_GRID_SIZE = g_h_bit[raw_num];
-#if 0 //only grid size need to program in lmap/rgbmap hw mode
-	w_grid_num = UPPER(width, g_w_bit[raw_num]) - 1;
-	h_grid_num = UPPER(height, g_h_bit[raw_num]) - 1;
-
-	rgbmap_le.bits.LE_RGBMP_H_GRID_NUMM1 = w_grid_num;
-	rgbmap_le.bits.LE_RGBMP_V_GRID_NUMM1 = h_grid_num;
-	rgbmap_se.bits.SE_RGBMP_H_GRID_NUMM1 = w_grid_num;
-	rgbmap_se.bits.SE_RGBMP_V_GRID_NUMM1 = h_grid_num;
-#endif
 	ISP_WR_REG(preraw_fe, REG_PRE_RAW_FE_T, LE_RGBMAP_GRID_NUMBER, rgbmap_le.raw);
 	ISP_WR_REG(preraw_fe, REG_PRE_RAW_FE_T, SE_RGBMAP_GRID_NUMBER, rgbmap_se.raw);
 }

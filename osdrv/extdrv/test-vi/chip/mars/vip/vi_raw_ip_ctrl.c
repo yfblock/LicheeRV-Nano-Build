@@ -187,16 +187,6 @@ void ispblk_lsc_config(struct isp_ctx *ctx, bool en)
 	ISP_WR_BITS(lsc, REG_ISP_LSC_T, LSC_ENABLE, LSC_ENABLE, en);
 }
 
-void ispblk_aehist_reset(struct isp_ctx *ctx, int blk_id, enum cvi_isp_raw raw_num)
-{
-#if 0
-	uintptr_t sts = ctx->phys_regs[blk_id];
-
-	ISP_WR_REG(sts, REG_ISP_AE_HIST_T, AE_HIST_GRACE_RESET, 1);
-	ISP_WR_REG(sts, REG_ISP_AE_HIST_T, AE_HIST_GRACE_RESET, 0);
-#endif
-}
-
 void ispblk_aehist_config(struct isp_ctx *ctx, int blk_id, bool enable)
 {
 	uintptr_t sts = ctx->phys_regs[blk_id];
@@ -231,12 +221,6 @@ void ispblk_gms_config(struct isp_ctx *ctx, bool enable)
 	u16 start_x = 0, start_y = 0;
 	// section size must be even, and size % 4 should be 2
 	u16 x_section_size = 62, y_section_size = 62;
-#if 0
-	x_section_size = (x_section_size > ((ctx->img_width - start_x - gap_x * 2) / 3)) ?
-				((ctx->img_width - start_x - gap_x * 2) / 3) : x_section_size;
-	y_section_size = (y_section_size > ((ctx->img_height - start_y - gap_y * 2) / 3)) ?
-				((ctx->img_height - start_y - gap_y * 2) / 3)  : y_section_size;
-#endif
 	ISP_WR_BITS(sts, REG_ISP_GMS_T, GMS_ENABLE, GMS_ENABLE, enable);
 	ISP_WR_BITS(sts, REG_ISP_GMS_T, GMS_ENABLE, OUT_SHIFTBIT, 0);
 	ISP_WR_BITS(sts, REG_ISP_GMS_T, DMI_ENABLE, DMI_ENABLE, enable);
@@ -246,10 +230,6 @@ void ispblk_gms_config(struct isp_ctx *ctx, bool enable)
 	ISP_WR_REG(sts, REG_ISP_GMS_T, GMS_Y_SIZEM1, y_section_size - 1);
 	ISP_WR_REG(sts, REG_ISP_GMS_T, GMS_X_GAP, gap_x);
 	ISP_WR_REG(sts, REG_ISP_GMS_T, GMS_Y_GAP, gap_y);
-}
-
-void ispblk_lmap_chg_size(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num, const enum cvi_isp_pre_chn_num chn_num)
-{
 }
 
 void ispblk_lmap_config(struct isp_ctx *ctx, int map_id, bool en)

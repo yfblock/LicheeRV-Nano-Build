@@ -1182,7 +1182,9 @@ long vi_sdk_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 	long rc = -EINVAL;
 	gvdev = vdev;
 
-	pr_info("vi_sdk_ctrl id=%u (%s)\n", id, _vi_sdk_ctrl_id_to_string(id));
+	if(0) {
+		pr_info("vi_sdk_ctrl id=%u (%s)\n", id, _vi_sdk_ctrl_id_to_string(id));
+	}
 
 	switch (id) {
 	case VI_SDK_SET_DEV_ATTR:

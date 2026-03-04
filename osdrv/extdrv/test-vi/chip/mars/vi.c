@@ -3032,22 +3032,6 @@ int vi_stop_streaming(struct cvi_vi_dev *vdev)
 				atomic_read(&vdev->postraw_state));
 	}
 
-#if 0
-	for (i = 0; i < 2; i++) {
-		/*
-		 * Release all the buffers enqueued to driver
-		 * when streamoff is issued
-		 */
-		spin_lock_irqsave(&vdev->rdy_lock, flags);
-		list_for_each_entry_safe(cvi_vb2, tmp, &(vdev->rdy_queue[i]), list) {
-			vfree(cvi_vb2);
-		}
-		vdev->num_rdy[i] = 0;
-		INIT_LIST_HEAD(&vdev->rdy_queue[i]);
-		spin_unlock_irqrestore(&vdev->rdy_lock, flags);
-	}
-#endif
-
 	for (i = 0; i < ISP_FE_CHN_MAX; i++) {
 		/*
 		 * Release all the buffers enqueued to driver
@@ -3903,45 +3887,6 @@ static inline void _pre_be_ctrl_update(struct cvi_vi_dev *vdev, const enum cvi_i
 
 static inline int _isp_clk_dynamic_en(struct cvi_vi_dev *vdev, bool en)
 {
-#if 0//ToDo
-	if (clk_dynamic_en && vdev->isp_clk[5]) {
-		struct isp_ctx *ctx = &vdev->ctx;
-
-		if (en && !__clk_is_enabled(vdev->isp_clk[5])) {
-			if (clk_enable(vdev->isp_clk[5])) {
-				vi_pr(VI_ERR, "[ERR] ISP_CLK(%s) enable fail\n", CLK_ISP_NAME[5]);
-				if (_is_fe_be_online(ctx))
-					atomic_set(&vdev->postraw_state, ISP_POSTRAW_IDLE);
-				else if (_is_be_post_online(ctx)) {
-					atomic_set(&vdev->pre_be_state[ISP_BE_CH0], ISP_PRE_BE_IDLE);
-					atomic_set(&vdev->postraw_state, ISP_POSTRAW_IDLE);
-				}
-
-				return -1;
-			}
-
-			vi_pr(VI_DBG, "enable clk(%s)\n", CLK_ISP_NAME[5]);
-		} else if (!en && __clk_is_enabled(vdev->isp_clk[5])) {
-			clk_disable(vdev->isp_clk[5]);
-
-			vi_pr(VI_DBG, "disable clk(%s)\n", CLK_ISP_NAME[5]);
-		}
-	} else { //check isp_top_clk is enabled
-		struct isp_ctx *ctx = &vdev->ctx;
-
-		if (!__clk_is_enabled(vdev->isp_clk[5])) {
-			if (clk_enable(vdev->isp_clk[5])) {
-				vip_pr(CVI_ERR, "[ERR] ISP_CLK(%s) enable fail\n", CLK_ISP_NAME[5]);
-				if (_is_fe_be_online(ctx))
-					atomic_set(&vdev->postraw_state, ISP_POSTRAW_IDLE);
-				else if (_is_be_post_online(ctx)) {
-					atomic_set(&vdev->pre_be_state[ISP_BE_CH0], ISP_PRE_BE_IDLE);
-					atomic_set(&vdev->postraw_state, ISP_POSTRAW_IDLE);
-				}
-			}
-		}
-	}
-#endif
 	return 0;
 }
 
@@ -5974,16 +5919,6 @@ static void _vi_record_debug_info(struct isp_ctx *ctx)
 	vi_info->rawtop.stready_status = ISP_RD_REG(rawtop, REG_RAW_TOP_T, STREADY_STATUS);
 	vi_info->rawtop.dma_idle = ISP_RD_REG(rawtop, REG_RAW_TOP_T, DMA_IDLE);
 
-#if 0
-	ISP_WR_BITS(isptop, REG_RAW_TOP_T, DEBUG_SELECT, RAW_TOP_DEBUG_SELECT, 0);
-	vi_pr(VI_INFO, "RAW_TOP, debug_select(h2c)=0x0, debug(h28)=0x%x\n",
-		ISP_RD_REG(rawtop, REG_RAW_TOP_T, DEBUG));
-
-	ISP_WR_BITS(isptop, REG_RAW_TOP_T, DEBUG_SELECT, RAW_TOP_DEBUG_SELECT, 4);
-	vi_pr(VI_INFO, "RAW_TOP, debug_select(h2c)=0x4, debug(h28)=0x%x\n",
-		ISP_RD_REG(rawtop, REG_RAW_TOP_T, DEBUG));
-#endif
-
 	//rgbtop
 	vi_info->rgbtop.ip_stvalid_status = ISP_RD_REG(rgbtop, REG_ISP_RGB_TOP_T, DBG_IP_S_VLD);
 	vi_info->rgbtop.ip_stready_status = ISP_RD_REG(rgbtop, REG_ISP_RGB_TOP_T, DBG_IP_S_RDY);
@@ -7440,8 +7375,6 @@ void vi_irq_handler(struct cvi_vi_dev *vdev)
 	union REG_ISP_TOP_INT_EVENT1 top_sts_1;
 	union REG_ISP_TOP_INT_EVENT2 top_sts_2;
 	u8 i = 0, raw_num = ISP_PRERAW_A;
-
-	pr_info("vi_irq_handler start\n");
 
 	isp_intr_status(ctx, &top_sts, &top_sts_1, &top_sts_2);
 

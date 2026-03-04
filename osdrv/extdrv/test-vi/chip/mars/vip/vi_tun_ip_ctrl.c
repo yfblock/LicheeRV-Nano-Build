@@ -1242,19 +1242,6 @@ void ispblk_tnr_tun_cfg(
 
 	if (!ctx->is_3dnr_on || !cfg->update)
 		return;
-#if 0
-	mm_00.raw = ISP_RD_REG(manr, REG_ISP_MMAP_T, REG_00);
-	if (!cfg->manr_enable) {
-		mm_00.bits.MMAP_0_ENABLE = 0;
-		mm_00.bits.MMAP_1_ENABLE = 0;
-		mm_00.bits.BYPASS = 1;
-	} else {
-		mm_00.bits.MMAP_0_ENABLE = 1;
-		mm_00.bits.MMAP_1_ENABLE = (ctx->isp_pipe_cfg[raw_num].is_hdr_on) ? 1 : 0;
-		mm_00.bits.BYPASS = (ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw) ? 1 : 0;
-	}
-	ISP_WR_REG(manr, REG_ISP_MMAP_T, REG_00, mm_00.raw);
-#endif
 	mm_04.raw = ISP_RD_REG(manr, REG_ISP_MMAP_T, REG_04);
 	mm_04.bits.MMAP_0_LPF_00 = cfg->lpf[0][0];
 	mm_04.bits.MMAP_0_LPF_01 = cfg->lpf[0][1];
@@ -2201,18 +2188,3 @@ void ispblk_mono_tun_cfg(
 		}
 	}
 }
-
-#if 0
-void ispblk_lscr_tun_cfg(
-	struct isp_ctx *ctx,
-	struct cvi_vip_isp_lscr_config *cfg,
-	const enum cvi_isp_raw raw_num)
-{
-}
-void ispblk_preproc_tun_cfg(
-	struct isp_ctx *ctx,
-	struct cvi_vip_isp_preproc_config *cfg,
-	const enum cvi_isp_raw raw_num)
-{
-}
-#endif

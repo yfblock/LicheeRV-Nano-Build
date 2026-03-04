@@ -576,7 +576,6 @@ void ispblk_csibdg_update_size(struct isp_ctx *ctx, enum cvi_isp_raw raw_num);
 void ispblk_csibdg_crop_update(struct isp_ctx *ctx, enum cvi_isp_raw raw_num, bool en);
 int ispblk_csibdg_config(struct isp_ctx *ctx, enum cvi_isp_raw raw_num);
 void ispblk_rgbmap_config(struct isp_ctx *ctx, int map_id, bool en, enum cvi_isp_raw raw_num);
-void ispblk_lmap_chg_size(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num, const enum cvi_isp_pre_chn_num chn_num);
 void ispblk_lmap_config(struct isp_ctx *ctx, int map_id, bool en);
 
 /****************************************************************************
@@ -595,7 +594,6 @@ void ispblk_ir_proc_config(struct isp_ctx *ctx, uint8_t *gamma);
  ****************************************************************************/
 void ispblk_bnr_config(struct isp_ctx *ctx, enum ISP_BNR_OUT out_sel, bool lsc_en, uint8_t ns_gain, uint8_t str);
 void ispblk_cfa_config(struct isp_ctx *ctx);
-void ispblk_aehist_reset(struct isp_ctx *ctx, int blk_id, enum cvi_isp_raw raw_num);
 void ispblk_aehist_config(struct isp_ctx *ctx, int blk_id, bool enable);
 void ispblk_gms_config(struct isp_ctx *ctx, bool enable);
 void ispblk_rgbcac_config(struct isp_ctx *ctx, bool en, uint8_t test_case);
@@ -874,19 +872,6 @@ void ispblk_mono_tun_cfg(
 	struct isp_ctx *ctx,
 	struct cvi_vip_isp_mono_config *cfg,
 	const enum cvi_isp_raw raw_num);
-#if 0
-/****************************************************************************
- *	Pre Be Tuning Config
- ****************************************************************************/
-void ispblk_lscr_tun_cfg(
-	struct isp_ctx *ctx,
-	struct cvi_vip_isp_lscr_config *cfg,
-	const enum cvi_isp_raw raw_num);
-void ispblk_preproc_tun_cfg(
-	struct isp_ctx *ctx,
-	struct cvi_vip_isp_preproc_config *cfg,
-	const enum cvi_isp_raw raw_num);
-#endif
 
 #ifdef __cplusplus
 }
