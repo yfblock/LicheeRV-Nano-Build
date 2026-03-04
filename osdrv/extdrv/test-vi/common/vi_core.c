@@ -5,16 +5,6 @@
 #define CVI_VI_CLASS_NAME          "cvi-vi"
 #define CVI_VI_DEV_NAME            "cvi-vi"
 
-/* Runtime to enable vi write reg info
- * Ctrl:
- *	0: Disable to dump addr/val info of writing reg.
- *	1: Enable to dump addr/val info of writing reg.
- */
-#ifdef PORTING_TEST
-int vi_dump_reg;
-module_param(vi_dump_reg, int, 0644);
-#endif
-
 static DEFINE_RAW_SPINLOCK(__io_lock);
 
 void _reg_write_mask(uintptr_t addr, u32 mask, u32 data)

@@ -1469,9 +1469,8 @@ void _ispblk_rawtop_cfg_update(struct isp_ctx *ctx, const enum cvi_isp_raw raw_n
 	uintptr_t lsc = ctx->phys_regs[ISP_BLK_ID_LSC];
 	uintptr_t hist_v = ctx->phys_regs[ISP_BLK_ID_HIST_V];
 	uintptr_t ltm = ctx->phys_regs[ISP_BLK_ID_HDRLTM];
-#if (defined( __SOC_MARS__) && !defined(PORTING_TEST))
 	union REG_RAW_TOP_PATGEN1 patgen1;
-#endif
+
 	if (ctx->isp_pipe_cfg[raw_num].is_yuv_bypass_path) { //YUV sensor
 		//Disable lsc
 		ISP_WR_BITS(lsc, REG_ISP_LSC_T, LSC_ENABLE, LSC_ENABLE, 0);
@@ -1504,15 +1503,12 @@ void _ispblk_rawtop_cfg_update(struct isp_ctx *ctx, const enum cvi_isp_raw raw_n
 		if (_is_be_post_online(ctx)) //fe->dram->be->post
 			ISP_WR_BITS(rawtop, REG_RAW_TOP_T, RDMI_ENABLE, RDMI_EN, 0);
 		else if (_is_fe_be_online(ctx)) {//fe->be->dram->post
-#if (defined( __SOC_MARS__) && !defined(PORTING_TEST))
 			patgen1.raw = ISP_RD_REG(rawtop, REG_RAW_TOP_T, PATGEN1);
 			patgen1.bits.PG_ENABLE = ctx->isp_pipe_cfg[raw_num].is_hdr_on ? 0 : ctx->is_slice_buf_on;
 			ISP_WR_REG(rawtop, REG_RAW_TOP_T, PATGEN1, patgen1.raw);
 			ISP_WR_BITS(rawtop, REG_RAW_TOP_T, RDMI_ENABLE, CH_NUM,
 				ctx->isp_pipe_cfg[raw_num].is_hdr_on ? 1 : ctx->is_slice_buf_on);
-#else
-			ISP_WR_BITS(rawtop, REG_RAW_TOP_T, RDMI_ENABLE, CH_NUM, ctx->isp_pipe_cfg[raw_num].is_hdr_on);
-#endif
+
 			ISP_WR_BITS(rawtop, REG_RAW_TOP_T, RDMI_ENABLE, RDMI_EN, 1);
 
 			if (ctx->is_dpcm_on) {

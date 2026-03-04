@@ -864,34 +864,3 @@ void ispblk_ycur_enable(struct isp_ctx *ctx, bool enable, uint8_t sel)
 	ISP_WR_BITS(ycur, REG_ISP_YCURV_T, YCUR_CTRL, YCUR_ENABLE, enable);
 	ISP_WR_BITS(ycur, REG_ISP_YCURV_T, YCUR_PROG_CTRL, YCUR_RSEL, sel);
 }
-
-#ifdef PORTING_TEST
-void ispblk_dci_restore_default_config(struct isp_ctx *ctx, bool en)
-{
-	uintptr_t dci = ctx->phys_regs[ISP_BLK_ID_DCI];
-	union REG_ISP_DCI_GAMMA_PROG_CTRL dci_gamma_ctrl;
-	union REG_ISP_DCI_GAMMA_PROG_DATA dci_gamma_data;
-	u16 i = 0;
-
-	ISP_WR_BITS(dci, REG_ISP_DCI_T, DCI_ENABLE, DCI_ENABLE, en);
-	ISP_WR_BITS(dci, REG_ISP_DCI_T, DCI_ENABLE, DCI_HIST_ENABLE, en);
-	ISP_WR_BITS(dci, REG_ISP_DCI_T, DCI_MAP_ENABLE, DCI_MAP_ENABLE, 0);
-	ISP_WR_BITS(dci, REG_ISP_DCI_T, DCI_MAP_ENABLE, DCI_PER1SAMPLE_ENABLE, en);
-	ISP_WR_REG(dci, REG_ISP_DCI_T, DCI_DEMO_MODE, 0);
-	ISP_WR_BITS(dci, REG_ISP_DCI_T, DMI_ENABLE, DMI_ENABLE, en);
-
-	dci_gamma_ctrl.raw = ISP_RD_REG(dci, REG_ISP_DCI_T, GAMMA_PROG_CTRL);
-	dci_gamma_ctrl.bits.GAMMA_WSEL = 0;
-	dci_gamma_ctrl.bits.GAMMA_PROG_EN = 0;
-	dci_gamma_ctrl.bits.GAMMA_PROG_1TO3_EN = 1;
-	ISP_WR_REG(dci, REG_ISP_DCI_T, GAMMA_PROG_CTRL, dci_gamma_ctrl.raw);
-
-	for (i = 0; i < 256; i += 2) {
-		dci_gamma_data.raw = 0;
-		ISP_WR_REG(dci, REG_ISP_DCI_T, GAMMA_PROG_DATA, dci_gamma_data.raw);
-	}
-
-	ISP_WR_BITS(dci, REG_ISP_DCI_T, GAMMA_PROG_CTRL, GAMMA_RSEL, 1);
-	ISP_WR_BITS(dci, REG_ISP_DCI_T, GAMMA_PROG_CTRL, GAMMA_PROG_EN, 0);
-}
-#endif

@@ -998,11 +998,9 @@ void ispblk_drc_tun_cfg(
 	if (!cfg->update)
 		return;
 
-#if (defined( __SOC_MARS__) && !defined(PORTING_TEST))
 	if (!(ctx->isp_pipe_cfg[raw_num].is_hdr_on)
 	    && (_is_fe_be_online(ctx) && ctx->is_slice_buf_on))
 		isp_runtime_hdr_patgen(ctx, raw_num, cfg->hdr_pattern);
-#endif
 
 	reg_00.raw = ISP_RD_REG(ba, REG_LTM_T, REG_H00);
 	reg_00.bits.LTM_ENABLE			= cfg->ltm_enable;

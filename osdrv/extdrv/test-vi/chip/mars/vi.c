@@ -38,20 +38,13 @@
  * But in vi-vpss online & vpss-vc sbm scenario, there is no way to drop the frame.
  * Use cover with black to avoid this problem.
  */
-#ifndef PORTING_TEST
 #define COVER_WITH_BLACK
-#endif
 /*******************************************************
  *  Global variables
  ******************************************************/
 //u32 vi_log_lv = VI_ERR | VI_WARN | VI_NOTICE | VI_INFO | VI_DBG;
 u32 vi_log_lv = 0;
 module_param(vi_log_lv, int, 0644);
-
-#ifdef PORTING_TEST //test only
-int stop_stream_en;
-module_param(stop_stream_en, int, 0644);
-#endif
 
 bool ctrl_flow = false;
 module_param(ctrl_flow, bool, 0644);
@@ -1535,11 +1528,7 @@ static void _isp_rawtop_init(struct cvi_vi_dev *vdev)
 	ispblk_lsc_config(ictx, false);
 
 	ispblk_cfa_config(ictx);
-#ifndef PORTING_TEST
 	ispblk_rgbcac_config(ictx, true, 0);
-#else
-	ispblk_rgbcac_config(ictx, false, 0);
-#endif
 	ispblk_lcac_config(ictx, false, 0);
 	ispblk_gms_config(ictx, true);
 
@@ -2999,10 +2988,6 @@ int vi_start_streaming(struct cvi_vi_dev *vdev)
 		_viBWCalSet(vdev);
 	}
 
-#ifdef PORTING_TEST
-	vi_ip_test_cases_init(ctx);
-#endif
-
 	for (raw_num = ISP_PRERAW_A; raw_num < ISP_PRERAW_MAX; raw_num++) {
 		if (!ctx->isp_pipe_enable[raw_num])
 			continue;
@@ -3177,9 +3162,7 @@ int vi_stop_streaming(struct cvi_vi_dev *vdev)
 			gpio_free(vdev->ctx.isp_pipe_cfg[raw_num].muxSwitchGpio.switchGpioPin);
 		}
 	}
-#ifdef PORTING_TEST
-	vi_ip_test_cases_uninit(&vdev->ctx);
-#endif
+
 	_vi_suspend(vdev);
 
 	return rc;
@@ -3559,13 +3542,6 @@ void _pre_hw_enque(
 		return;
 	}
 
-#ifdef PORTING_TEST //test only
-	if (stop_stream_en) {
-		vi_pr(VI_WARN, "stop_stream_en\n");
-		return;
-	}
-#endif
-
 	if (atomic_read(&vdev->isp_streamoff) == 0) {
 		if (_is_drop_next_frame(vdev, raw_num, chn_num)) {
 			vi_pr(VI_DBG, "Pre_fe_%d chn_num_%d drop_frame_num %d\n",
@@ -3778,9 +3754,7 @@ static inline void _post_lmap_update(struct isp_ctx *ctx, const enum cvi_isp_raw
 		ispblk_dma_setaddr(ctx, ISP_BLK_ID_DMA_CTL31, lmap_se);
 	} else {
 		ispblk_dma_setaddr(ctx, ISP_BLK_ID_DMA_CTL40, lmap_le);
-#ifdef  __SOC_MARS__
 		ispblk_dma_setaddr(ctx, ISP_BLK_ID_DMA_CTL31, lmap_le);
-#endif
 	}
 }
 
@@ -5291,14 +5265,6 @@ static long _vi_g_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 			break;
 		}
 
-#if 0//PORTING_TEST //test only
-		isp_bufpool[raw_num].sts_mem[0].ae_le.phy_addr = 0x11223344;
-		isp_bufpool[raw_num].sts_mem[0].ae_le.size = 44800;
-		isp_bufpool[raw_num].sts_mem[0].af.phy_addr = 0xaabbccdd;
-		isp_bufpool[raw_num].sts_mem[0].af.size = 16320;
-		isp_bufpool[raw_num].sts_mem[0].awb.phy_addr = 0x12345678;
-		isp_bufpool[raw_num].sts_mem[0].awb.size = 71808;
-#endif
 		rval = copy_to_user(p->ptr,
 					isp_bufpool[raw_num].sts_mem,
 					sizeof(struct cvi_isp_sts_mem) * 2);
@@ -5341,16 +5307,10 @@ static long _vi_g_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 		if (copy_from_user(&dump[0], p->ptr, sizeof(struct cvi_vip_isp_raw_blk) * 2) != 0)
 			break;
 
-#if 0//PORTING_TEST //test only
-		dump[0].raw_dump.phy_addr = 0x11223344;
-		if (copy_to_user(p->ptr, &dump[0], sizeof(struct cvi_vip_isp_raw_blk) * 2) != 0)
-			break;
-		rc = 0;
-#else
+
 		rc = isp_raw_dump(vdev, &dump[0]);
 		if (copy_to_user(p->ptr, &dump[0], sizeof(struct cvi_vip_isp_raw_blk) * 2) != 0)
 			break;
-#endif
 		break;
 	}
 
@@ -5496,18 +5456,7 @@ static long _vi_g_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 		unsigned long flags;
 
 		spin_lock_irqsave(&event_lock, flags);
-#if 0//PORTING_TEST //test only
-		struct vi_event_k *ev_test;
-		static u32 frm_num, type;
 
-		ev_test = kzalloc(sizeof(*ev_test), GFP_ATOMIC);
-
-		ev_test->ev.dev_id = 0;
-		ev_test->ev.type = type++ % (VI_EVENT_MAX - 1);
-		ev_test->ev.frame_sequence = frm_num++;
-		ev_test->ev.timestamp = ktime_to_timeval(ktime_get());
-		list_add_tail(&ev_test->list, &event_q.list);
-#endif
 		if (!list_empty(&event_q.list)) {
 			ev_k = list_first_entry(&event_q.list, struct vi_event_k, list);
 			ev_u.dev_id		= ev_k->ev.dev_id;

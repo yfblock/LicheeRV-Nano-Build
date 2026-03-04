@@ -158,9 +158,7 @@ void ispblk_rawtop_config(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num)
 	union REG_RAW_TOP_RDMI_ENABLE rdmi_enable;
 	union REG_RAW_TOP_LE_LMAP_GRID_NUMBER   le_lmap_size;
 	union REG_RAW_TOP_SE_LMAP_GRID_NUMBER   se_lmap_size;
-#if (defined( __SOC_MARS__) && !defined(PORTING_TEST))
 	union REG_RAW_TOP_PATGEN1 patgen1;
-#endif
 
 	raw_2.raw = 0;
 	raw_2.bits.IMG_WIDTHM1 = ctx->img_width - 1;
@@ -171,7 +169,6 @@ void ispblk_rawtop_config(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num)
 
 	rdmi_enable.raw = ISP_RD_REG(rawtop, REG_RAW_TOP_T, RDMI_ENABLE);
 	rdmi_enable.bits.CH_NUM = ctx->isp_pipe_cfg[raw_num].is_hdr_on;
-#if (defined( __SOC_MARS__) && !defined(PORTING_TEST))
 	if (!(ctx->isp_pipe_cfg[raw_num].is_hdr_on)
 	    && (_is_fe_be_online(ctx) && ctx->is_slice_buf_on)) {
 		//In order for linearMode use guideWeight
@@ -185,7 +182,6 @@ void ispblk_rawtop_config(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num)
 		patgen1.bits.PG_ENABLE		= 0;
 		ISP_WR_REG(rawtop, REG_RAW_TOP_T, PATGEN1, patgen1.raw);
 	}
-#endif
 	ISP_WR_REG(rawtop, REG_RAW_TOP_T, RDMI_ENABLE, rdmi_enable.raw);
 
 	if (ctx->is_yuv_sensor) {
@@ -195,19 +191,7 @@ void ispblk_rawtop_config(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num)
 		ISP_WO_BITS(rawtop, REG_RAW_TOP_T, CTRL, LS_CROP_DST_SEL, 0);
 		ISP_WO_BITS(rawtop, REG_RAW_TOP_T, RAW_4, YUV_IN_MODE, 0);
 	}
-#if 0
-	if (_is_fe_be_online(ctx)) { // fe->be->dram->post single sensor frame_base/slice buffer
-		union REG_RAW_TOP_RDMA_SIZE rdma_size;
 
-		ISP_WR_BITS(rawtop, REG_RAW_TOP_T, RDMI_ENABLE, RDMI_EN, 1);
-		rdma_size.raw = 0;
-		rdma_size.bits.RDMI_WIDTHM1 = ctx->img_width - 1;
-		rdma_size.bits.RDMI_HEIGHTM1 = ctx->img_height - 1;
-		ISP_WR_REG(rawtop, REG_RAW_TOP_T, RDMA_SIZE, rdma_size.raw);
-	} else { //fe->dram->be->post (2/3 sensors) or fe->be->post (onthefly)
-		ISP_WR_BITS(rawtop, REG_RAW_TOP_T, RDMI_ENABLE, RDMI_EN, 0);
-	}
-#endif
 	if (!ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw) {
 		if (_is_fe_be_online(ctx) && ctx->is_dpcm_on) { //dram->post
 			ISP_WR_BITS(rawtop, REG_RAW_TOP_T, DPCM_MODE, DPCM_MODE, 7);
@@ -448,13 +432,11 @@ void ispblk_isptop_config(struct isp_ctx *ctx)
 	scene_ctrl.bits.RGBMP_ONLINE_S_ENABLE	= 0;
 	scene_ctrl.bits.RAW2YUV_422_ENABLE	= 0;
 	scene_ctrl.bits.HDR_ENABLE		= ctx->is_hdr_on;
-#if (defined( __SOC_MARS__) && !defined(PORTING_TEST))
 	if (!(ctx->is_hdr_on)
 	    && (_is_fe_be_online(ctx) && ctx->is_slice_buf_on)) {
 		//In order for linearMode use guideWeight
 		scene_ctrl.bits.HDR_ENABLE	= 1;
 	}
-#endif
 	// to verify IP, turn off HW LUT of rgbgamma, ynr, and cnr.
 	scene_ctrl.bits.HW_AUTO_ENABLE		= 0;
 	// set the position of the beginning of YUV suggested by HW
@@ -473,34 +455,6 @@ void ispblk_isptop_config(struct isp_ctx *ctx)
 	ISP_WR_BITS(isptopb, REG_ISP_TOP_T, DUMMY, DBUS_SEL, 4);
 	//ISP_WR_REG(isptopb, REG_ISP_TOP_T, REG_1C, 7);
 }
-
-#ifdef PORTING_TEST
-
-void ispblk_isptop_fpga_config(struct isp_ctx *ctx, uint16_t test_case)
-{
-	uintptr_t isptopb = ctx->phys_regs[ISP_BLK_ID_ISPTOP];
-	union REG_ISP_TOP_SCENARIOS_CTRL scene_ctrl;
-
-	scene_ctrl.raw = ISP_RD_REG(isptopb, REG_ISP_TOP_T, SCENARIOS_CTRL);
-	// to verify IP, turn off HW LUT of rgbgamma, ynr, and cnr.
-	if (test_case == 0) {
-		scene_ctrl.bits.HW_AUTO_ENABLE		= 0;
-		scene_ctrl.bits.HW_AUTO_ISO		= 0;
-	} else if (test_case == 1) {
-		scene_ctrl.bits.HW_AUTO_ENABLE		= 1;
-		scene_ctrl.bits.HW_AUTO_ISO		= 0;
-	} else if (test_case == 2) { //auto_iso
-		scene_ctrl.bits.HW_AUTO_ENABLE		= 1;
-		scene_ctrl.bits.HW_AUTO_ISO		= 2;
-	} else if (test_case == 0xFF) { //store default config
-		scene_ctrl.bits.HW_AUTO_ENABLE		= 1;
-		scene_ctrl.bits.HW_AUTO_ISO		= 0;
-	}
-
-	ISP_WR_REG(isptopb, REG_ISP_TOP_T, SCENARIOS_CTRL, scene_ctrl.raw);
-}
-
-#endif
 
 void isp_intr_set_mask(struct isp_ctx *ctx)
 {

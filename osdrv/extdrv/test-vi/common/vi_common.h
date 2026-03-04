@@ -9,26 +9,12 @@
 #include <linux/debugfs.h>
 #include <linux/io.h>
 
-
-#ifdef PORTING_TEST
-extern int vi_dump_reg;
-#endif
-
 #define _reg_read(addr) readl((void __iomem *)addr)
 //#define _reg_write(addr, data) writel(data, (void __iomem *)addr)
-#ifdef PORTING_TEST
-#define _reg_write(addr, data) \
-	{ \
-		writel(data, (void __iomem *)addr); \
-		if (vi_dump_reg) \
-			pr_info("MWriteS32 %#x %#x\n", (u32)(addr), (u32)(data)); \
-	}
-#else
 #define _reg_write(addr, data) \
 	{ \
 		writel(data, (void __iomem *)addr); \
 	}
-#endif
 
 #define MIN(a, b) (((a) < (b))?(a):(b))
 #define MAX(a, b) (((a) > (b))?(a):(b))

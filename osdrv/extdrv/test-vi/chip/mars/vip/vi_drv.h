@@ -888,14 +888,6 @@ void ispblk_preproc_tun_cfg(
 	const enum cvi_isp_raw raw_num);
 #endif
 
-#ifdef PORTING_TEST
-void vi_ip_test_cases_init(struct isp_ctx *ctx);
-void vi_ip_test_cases_uninit(struct isp_ctx *ctx);
-void ispblk_patgen_config_pat(struct isp_ctx *ctx, enum cvi_isp_raw raw_num, uint8_t test_case);
-void ispblk_isptop_fpga_config(struct isp_ctx *ctx, uint16_t test_case);
-void ispblk_dci_restore_default_config(struct isp_ctx *ctx, bool en);
-#endif
-
 #ifdef __cplusplus
 }
 #endif

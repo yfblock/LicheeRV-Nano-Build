@@ -91,66 +91,6 @@ static void _patgen_config_pat(struct isp_ctx *ctx, enum cvi_isp_raw raw_num)
 	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_FIX_COLOR_0, MDE_G, 0x8AE);
 	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_FIX_COLOR_1, MDE_B, 0xD05);
 }
-#ifdef PORTING_TEST
-void ispblk_patgen_config_pat(struct isp_ctx *ctx, enum cvi_isp_raw raw_num, uint8_t test_case)
-{
-	uintptr_t csibdg;
-
-	if (raw_num == ISP_PRERAW_A) {
-		csibdg = ctx->phys_regs[ISP_BLK_ID_CSIBDG0];
-	} else if (raw_num == ISP_PRERAW_B) {
-		csibdg = ctx->phys_regs[ISP_BLK_ID_CSIBDG1];
-	} else {
-		csibdg = ctx->phys_regs[ISP_BLK_ID_CSIBDG2];
-	}
-
-	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_GEN_CTRL, GRA_INV, 0);
-	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_GEN_CTRL, AUTO_EN, 0);
-	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_GEN_CTRL, DITH_EN, 0);
-	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_GEN_CTRL, SNOW_EN, 0);
-	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_GEN_CTRL, FIX_MC, 0);
-	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_GEN_CTRL, DITH_MD, 0);
-	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_GEN_CTRL, BAYER_ID, 0);
-	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_IDX_CTRL, PAT_PRD, 0);
-
-	if (raw_num == ISP_PRERAW_A)
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_IDX_CTRL, PAT_IDX, 0x7);
-	else
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_IDX_CTRL, PAT_IDX, 1);
-
-	if (test_case == 0) { //white
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_IDX_CTRL, PAT_IDX, 0x0);
-
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_COLOR_0, PAT_R, 0xFFF);
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_COLOR_0, PAT_G, 0xFFF);
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_COLOR_1, PAT_B, 0xFFF);
-
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_BACKGROUND_COLOR_0, FDE_R, 0);
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_BACKGROUND_COLOR_0, FDE_G, 1);
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_BACKGROUND_COLOR_1, FDE_B, 2);
-
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_FIX_COLOR_0, MDE_R, 0x457);
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_FIX_COLOR_0, MDE_G, 0x8AE);
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_FIX_COLOR_1, MDE_B, 0xD05);
-	} else if (test_case == 1) { //black
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_IDX_CTRL, PAT_IDX, 0x0);
-
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_COLOR_0, PAT_R, 0x0);
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_COLOR_0, PAT_G, 0x0);
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_COLOR_1, PAT_B, 0x0);
-
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_BACKGROUND_COLOR_0, FDE_R, 0);
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_BACKGROUND_COLOR_0, FDE_G, 0);
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_BACKGROUND_COLOR_1, FDE_B, 0);
-
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_FIX_COLOR_0, MDE_R, 0x0);
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_FIX_COLOR_0, MDE_G, 0x0);
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_FIX_COLOR_1, MDE_B, 0x0);
-	} else if (test_case == 3) { // to test ca lite
-		ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_PAT_IDX_CTRL, PAT_IDX, 0xF);
-	}
-}
-#endif
 
 void ispblk_csidbg_dma_wr_en(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num, const u8 chn_num, const u8 en)
 {
