@@ -9,7 +9,6 @@
 #include <vi_cb.h>
 #include <dwa_cb.h>
 #include <vb.h>
-#include <vip/vi_perf_chk.h>
 #include <vcodec_cb.h>
 #include <vi_raw_dump.h>
 
@@ -4080,8 +4079,6 @@ YUV_POSTRAW_TILE:
 		ctx->cam_id = raw_num;
 
 		isp_post_trig(ctx, raw_num);
-
-		vi_record_post_trigger(vdev, raw_num);
 	} else if (_is_be_post_online(ctx)) { //fe->dram->be->post
 		if (atomic_cmpxchg(&vdev->pre_be_state[ISP_BE_CH0], ISP_PRE_BE_IDLE, ISP_PRE_BE_RUNNING)
 										!= ISP_PRE_BE_IDLE) {
@@ -4255,7 +4252,6 @@ YUV_POSTRAW:
 			}
 
 			isp_post_trig(ctx, raw_num);
-			vi_record_post_trigger(vdev, raw_num);
 
 			if (!ctx->isp_pipe_cfg[raw_num].is_offline_preraw) {
 				_pre_hw_enque(vdev, raw_num, ISP_FE_CH0);
@@ -7548,8 +7544,6 @@ void vi_irq_handler(struct cvi_vi_dev *vdev)
 	if (!atomic_read(&vdev->isp_streamon))
 		return;
 
-	vi_perf_record_dump();
-
 	for (raw_num = ISP_PRERAW_A; raw_num < ISP_PRERAW_MAX; raw_num++) {
 		if (!ctx->isp_pipe_enable[raw_num])
 			continue;
@@ -7579,8 +7573,6 @@ void vi_irq_handler(struct cvi_vi_dev *vdev)
 
 	/* pre_fe0 ch0 frame start */
 	if (top_sts_2.bits.FRAME_START_FE0 & 0x1) {
-		vi_record_sof_perf(vdev, ISP_PRERAW_A, ISP_FE_CH0);
-
 		if (!vdev->ctx.isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw)
 			++vdev->pre_fe_sof_cnt[ISP_PRERAW_A][ISP_FE_CH0];
 
@@ -7677,8 +7669,6 @@ void vi_irq_handler(struct cvi_vi_dev *vdev)
 
 	/* pre_fe0 ch0 frm_done */
 	if (top_sts.bits.FRAME_DONE_FE0 & 0x1) {
-		vi_record_fe_perf(vdev, ISP_PRERAW_A, ISP_FE_CH0);
-
 		// In synthetic HDR mode, we assume that the first SOF is long exposure frames,
 		// and the second SOF is short exposure frames.
 		if (ctx->isp_pipe_cfg[ISP_PRERAW_A].is_hdr_on && ctx->is_synthetic_hdr_on) {
@@ -7730,8 +7720,6 @@ void vi_irq_handler(struct cvi_vi_dev *vdev)
 
 	/* pre_be ch0 frm done */
 	if (top_sts.bits.FRAME_DONE_BE & 0x1) {
-		vi_record_be_perf(vdev, ISP_PRERAW_A, ISP_BE_CH0);
-
 		_isp_pre_be_done_handler(vdev, ISP_BE_CH0);
 	}
 
@@ -7749,8 +7737,6 @@ void vi_irq_handler(struct cvi_vi_dev *vdev)
 
 	/* post frm done */
 	if (top_sts.bits.FRAME_DONE_POST) {
-		vi_record_post_end(vdev, ISP_PRERAW_A);
-
 		_isp_postraw_done_handler(vdev);
 	}
 }
