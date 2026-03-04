@@ -2421,26 +2421,6 @@ void _vi_ctrl_init(enum cvi_isp_raw raw_num, struct cvi_vi_dev *vdev)
 		vi_pr(VI_INFO, "patgen csibdg_w_h(%d:%d)\n",
 			ictx->isp_pipe_cfg[raw_num].csibdg_width, ictx->isp_pipe_cfg[raw_num].csibdg_height);
 
-#if defined( __SOC_PHOBOS__)
-/**
- * the hardware limit is clk_mac <= clk_be * 2
- * cv180x's clk_mac is 594M, but clk_be just 198M(ND)/250M(OD)
- * clk_mac need to do frequency division.
- * ratio = (div_val + 1) / 32
- * target = source * ratio
- * div_val = target / source * 32 - 1
- * ex: target = 200, source = 594, div_val = 200 / 594 * 32 - 1 = 10
- */
-		vip_sys_reg_write_mask(VIP_SYS_REG_NORM_DIV_VAL_CSI_MAC0,
-					VIP_SYS_REG_NORM_DIV_VAL_CSI_MAC0_MASK,
-					10 << VIP_SYS_REG_NORM_DIV_VAL_CSI_MAC0_OFFSET);
-		vip_sys_reg_write_mask(VIP_SYS_REG_NORM_DIV_EN_CSI_MAC0,
-					VIP_SYS_REG_NORM_DIV_EN_CSI_MAC0_MASK,
-					1 << VIP_SYS_REG_NORM_DIV_EN_CSI_MAC0_OFFSET);
-		vip_sys_reg_write_mask(VIP_SYS_REG_UPDATE_SEL_CSI_MAC0,
-					VIP_SYS_REG_UPDATE_SEL_CSI_MAC0_MASK,
-					1 << VIP_SYS_REG_UPDATE_SEL_CSI_MAC0_OFFSET);
-#endif
 	} else if (ictx->isp_pipe_cfg[raw_num].is_offline_preraw) {
 		ictx->isp_pipe_cfg[raw_num].crop.w = vdev->usr_crop.width;
 		ictx->isp_pipe_cfg[raw_num].crop.h = vdev->usr_crop.height;
@@ -4794,12 +4774,6 @@ static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 
 	case VI_IOCTL_HDR:
 	{
-#if defined( __SOC_PHOBOS__)
-		if (p->value == true) {
-			vi_pr(VI_ERR, "only support linear mode.\n");
-			break;
-		}
-#endif
 		ctx->is_hdr_on = p->value;
 		ctx->isp_pipe_cfg[ISP_PRERAW_A].is_hdr_on = p->value;
 		vi_pr(VI_INFO, "HDR_ON(%d) for test\n", ctx->is_hdr_on);
@@ -5043,12 +5017,6 @@ static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 
 		if (copy_from_user(&snr_info, p->ptr, sizeof(struct cvi_isp_snr_info)) != 0)
 			break;
-#if defined( __SOC_PHOBOS__)
-		if (snr_info.raw_num >= ISP_PRERAW_VIRT_MAX) {
-			vi_pr(VI_ERR, "only support single sensor.\n");
-			break;
-		}
-#endif
 		memcpy(&vdev->snr_info[snr_info.raw_num], &snr_info, sizeof(struct cvi_isp_snr_info));
 		vi_pr(VI_WARN, "raw_num=%d, color_mode=%d, frm_num=%d, snr_w:h=%d:%d, active_w:h=%d:%d\n",
 			snr_info.raw_num,

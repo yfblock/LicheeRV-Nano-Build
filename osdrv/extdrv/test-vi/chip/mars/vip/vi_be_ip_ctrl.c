@@ -16,11 +16,6 @@ void ispblk_dpc_config(struct isp_ctx *ctx, enum ISP_RAW_PATH path, bool enable,
 		       : ctx->phys_regs[ISP_BLK_ID_DPC1];
 	union REG_ISP_DPC_2 reg_2;
 
-#if defined( __SOC_PHOBOS__)
-	if (path == ISP_RAW_PATH_SE)
-		return;
-#endif
-
 	reg_2.raw = ISP_RD_REG(dpc, REG_ISP_DPC_T, DPC_2);
 	reg_2.bits.DPC_ENABLE = enable;
 	reg_2.bits.GE_ENABLE = enable;
@@ -57,11 +52,6 @@ void ispblk_dpc_set_static(struct isp_ctx *ctx, enum ISP_RAW_PATH path,
 		       ? ctx->phys_regs[ISP_BLK_ID_DPC0]
 		       : ctx->phys_regs[ISP_BLK_ID_DPC1];
 	uint16_t i = 0;
-
-#if defined( __SOC_PHOBOS__)
-	if (path == ISP_RAW_PATH_SE)
-		return;
-#endif
 
 	ISP_WR_BITS(dpc, REG_ISP_DPC_T, DPC_17, DPC_MEM_PROG_MODE, 1);
 

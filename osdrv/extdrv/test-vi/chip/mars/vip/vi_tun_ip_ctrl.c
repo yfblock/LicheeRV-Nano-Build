@@ -722,11 +722,7 @@ void ispblk_ygamma_tun_cfg(
 		return;
 
 	prog_ctrl.raw = ISP_RD_REG(gamma, REG_YGAMMA_T, GAMMA_PROG_CTRL);
-#ifndef  __SOC_PHOBOS__
 	prog_ctrl.bits.GAMMA_WSEL		= 0;
-#else
-	prog_ctrl.bits.GAMMA_WSEL		= prog_ctrl.bits.GAMMA_WSEL ^ 1;
-#endif
 	prog_ctrl.bits.GAMMA_PROG_EN		= 1;
 	prog_ctrl.bits.GAMMA_PROG_1TO3_EN	= 1;
 	ISP_WR_REG(gamma, REG_YGAMMA_T, GAMMA_PROG_CTRL, prog_ctrl.raw);
@@ -767,11 +763,7 @@ void ispblk_gamma_tun_cfg(
 		return;
 
 	prog_ctrl.raw = ISP_RD_REG(gamma, REG_ISP_GAMMA_T, GAMMA_PROG_CTRL);
-#ifndef  __SOC_PHOBOS__
 	prog_ctrl.bits.GAMMA_WSEL		= 0;
-#else
-	prog_ctrl.bits.GAMMA_WSEL		= prog_ctrl.bits.GAMMA_WSEL ^ 1;
-#endif
 	prog_ctrl.bits.GAMMA_PROG_EN		= 1;
 	prog_ctrl.bits.GAMMA_PROG_1TO3_EN	= 1;
 	ISP_WR_REG(gamma, REG_ISP_GAMMA_T, GAMMA_PROG_CTRL, prog_ctrl.raw);
@@ -1656,11 +1648,7 @@ void ispblk_ycur_tun_cfg(
 
 	if (cfg->enable) {
 		prog_ctrl.raw = ISP_RD_REG(ycur, REG_ISP_YCURV_T, YCUR_PROG_CTRL);
-#ifndef  __SOC_PHOBOS__
 		prog_ctrl.bits.YCUR_WSEL = 0;
-#else
-		prog_ctrl.bits.YCUR_WSEL = prog_ctrl.bits.YCUR_WSEL ^ 1;
-#endif
 		prog_ctrl.bits.YCUR_PROG_EN = 1;
 		ISP_WR_REG(ycur, REG_ISP_YCURV_T, YCUR_PROG_CTRL, prog_ctrl.raw);
 
@@ -1706,11 +1694,7 @@ void ispblk_dci_tun_cfg(
 	ISP_WR_REG(dci, REG_ISP_DCI_T, DCI_DEMO_MODE, cfg->demo_mode);
 
 	dci_gamma_ctrl.raw = ISP_RD_REG(dci, REG_ISP_DCI_T, GAMMA_PROG_CTRL);
-#ifndef  __SOC_PHOBOS__
 	dci_gamma_ctrl.bits.GAMMA_WSEL = 0;
-#else
-	dci_gamma_ctrl.bits.GAMMA_WSEL = dci_gamma_ctrl.bits.GAMMA_WSEL ^ 1;
-#endif
 	dci_gamma_ctrl.bits.GAMMA_PROG_EN = 1;
 	dci_gamma_ctrl.bits.GAMMA_PROG_1TO3_EN = 1;
 	ISP_WR_REG(dci, REG_ISP_DCI_T, GAMMA_PROG_CTRL, dci_gamma_ctrl.raw);

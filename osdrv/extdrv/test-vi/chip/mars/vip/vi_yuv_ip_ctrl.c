@@ -9,13 +9,8 @@ extern struct lmap_cfg g_lmp_cfg[ISP_PRERAW_VIRT_MAX];
 /****************************************************************************
  * FBC_CONFIG
  ****************************************************************************/
-#if defined( __SOC_PHOBOS__)
-#define TNR_Y_W		5
-#define TNR_C_W		6
-#else
 #define TNR_Y_W		10
 #define TNR_C_W		11
-#endif
 #define TNR_Y_R		9
 #define TNR_C_R		10
 
@@ -298,13 +293,8 @@ void ispblk_fbc_ring_buf_config(struct isp_ctx *ctx, u8 en)
 		ISP_WR_REG(rdma_com, REG_RDMA_CORE_T, RING_BUFFER_EN, ring_buf_en.raw);
 
 		//WDMA ctrl cfg
-#if defined( __SOC_PHOBOS__)
-		ISP_WR_REG(wdma_com_1, REG_WDMA_CORE_T, RING_BUFFER_SIZE5, fbc_cfg.y_buf_size);
-		ISP_WR_REG(wdma_com_1, REG_WDMA_CORE_T, RING_BUFFER_SIZE6, fbc_cfg.c_buf_size);
-#else
 		ISP_WR_REG(wdma_com_1, REG_WDMA_CORE_T, RING_BUFFER_SIZE10, fbc_cfg.y_buf_size);
 		ISP_WR_REG(wdma_com_1, REG_WDMA_CORE_T, RING_BUFFER_SIZE11, fbc_cfg.c_buf_size);
-#endif
 		ISP_WR_REG(wdma_com_1, REG_WDMA_CORE_T, UP_RING_BASE, ((1 << TNR_Y_W) | (1 << TNR_C_W)));
 
 		//RDMA ctrl cfg

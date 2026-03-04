@@ -40,18 +40,8 @@ static void _patgen_config_timing(struct isp_ctx *ctx, enum cvi_isp_raw raw_num)
 	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_VSYNC_CTRL, VS_STR, 4);
 	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_VSYNC_CTRL, VS_STP, 5);
 
-#if defined( __SOC_PHOBOS__)
-/**
- * cv180x's clk_mac is 594M, after division frequency = 204M
- * htt * vtt * fps <= clk_mac * divider ratio
- * ex: target 1920x1080p25, htt = 0x1000, vtt = 0x7D0
- */
-	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_TGEN_TT_SIZE, VTT, 0x7D0);
-	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_TGEN_TT_SIZE, HTT, 0x1000);
-#else
 	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_TGEN_TT_SIZE, VTT, 0xFFF);
 	ISP_WR_BITS(csibdg, REG_ISP_CSI_BDG_T, CSI_TGEN_TT_SIZE, HTT, 0x17FF);
-#endif
 }
 
 static void _patgen_config_pat(struct isp_ctx *ctx, enum cvi_isp_raw raw_num)
@@ -417,11 +407,6 @@ void ispblk_rgbmap_dma_mode(struct isp_ctx *ctx, uint32_t dmaid)
 	uintptr_t dmab = ctx->phys_regs[dmaid];
 	union REG_ISP_DMA_CTL_SYS_CONTROL sys_ctrl;
 
-#if defined( __SOC_PHOBOS__)
-	if (dmaid != ISP_BLK_ID_DMA_CTL10)//only fe0 rgbmap_le need
-		return;
-#endif
-
 	//1: SW mode: config by SW 0: HW mode: auto config by HW
 	sys_ctrl.raw = ISP_RD_REG(dmab, REG_ISP_DMA_CTL_T, SYS_CONTROL);
 	sys_ctrl.bits.BASE_SEL		= 0x1;
@@ -434,11 +419,6 @@ void ispblk_rgbmap_dma_mode(struct isp_ctx *ctx, uint32_t dmaid)
 void ispblk_rgbmap_config(struct isp_ctx *ctx, int map_id, bool en, enum cvi_isp_raw raw_num)
 {
 	uintptr_t map = ctx->phys_regs[map_id];
-
-#if defined( __SOC_PHOBOS__)
-	if (map_id == ISP_BLK_ID_RGBMAP1)
-		return;
-#endif
 
 	switch (map_id) {
 	case ISP_BLK_ID_RGBMAP0:

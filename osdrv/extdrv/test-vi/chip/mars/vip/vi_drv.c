@@ -29,13 +29,8 @@ extern struct vi_fbc_cfg fbc_cfg;
  * SLICE_BUFFER_CONFIG
  ****************************************************************************/
 enum W_RING_BUF_ID {
-#if defined( __SOC_PHOBOS__)
-	RGBMAP_LE = 2,
-	BE_WDMA_LE = 3,
-#else
 	RGBMAP_LE = 4,
 	BE_WDMA_LE = 6,
-#endif
 	RGBMAP_SE = 5,
 	BE_WDMA_SE = 7,
 	W_RING_BUF_ID_MAX,
@@ -773,27 +768,6 @@ void ispblk_dma_set_sw_mode(struct isp_ctx *ctx, uint32_t dmaid, bool is_sw_mode
 	uintptr_t dmab = ctx->phys_regs[dmaid];
 	union REG_ISP_DMA_CTL_SYS_CONTROL sys_ctrl;
 
-#if defined( __SOC_PHOBOS__)
-	switch (dmaid) {
-	case ISP_BLK_ID_DMA_CTL5://be_se_rdma_ctl
-	case ISP_BLK_ID_DMA_CTL11://fe0 rgbmap SE
-	case ISP_BLK_ID_DMA_CTL16://fe1 rgbmap LE
-	case ISP_BLK_ID_DMA_CTL17://fe1 rgbmap SE
-	case ISP_BLK_ID_DMA_CTL20://fe2 rgbmap LE
-	case ISP_BLK_ID_DMA_CTL23://be_se_wdma_ctl
-	case ISP_BLK_ID_DMA_CTL31://lmap SE
-	case ISP_BLK_ID_DMA_CTL8://fe0 csi2/fe1 ch0
-	case ISP_BLK_ID_DMA_CTL9://fe0 csi3/fe1 ch1
-	case ISP_BLK_ID_DMA_CTL27://aehist1
-	case ISP_BLK_ID_DMA_CTL29://raw crop SE
-	case ISP_BLK_ID_DMA_CTL33://MANR_P_SE
-	case ISP_BLK_ID_DMA_CTL35://MANR_C_SE
-		return;
-	default:
-		break;
-	}
-#endif
-
 	//SW mode: config by SW
 	sys_ctrl.raw = ISP_RD_REG(dmab, REG_ISP_DMA_CTL_T, SYS_CONTROL);
 	sys_ctrl.bits.BASE_SEL		= 0x1;
@@ -1159,11 +1133,9 @@ int ccm_find_hwid(int id)
 	case ISP_CCM_ID_0:
 		ccm_id = ISP_BLK_ID_CCM0;
 		break;
-#if !defined( __SOC_PHOBOS__)
 	case ISP_CCM_ID_1:
 		ccm_id = ISP_BLK_ID_CCM1;
 		break;
-#endif
 	default:
 		break;
 	}
@@ -1179,7 +1151,6 @@ int blc_find_hwid(int id)
 	case ISP_BLC_ID_FE0_LE:
 		blc_id = ISP_BLK_ID_BLC0;
 		break;
-#if !defined( __SOC_PHOBOS__)
 	case ISP_BLC_ID_FE0_SE:
 		blc_id = ISP_BLK_ID_BLC1;
 		break;
@@ -1192,15 +1163,12 @@ int blc_find_hwid(int id)
 	case ISP_BLC_ID_FE2_LE:
 		blc_id = ISP_BLK_ID_BLC4;
 		break;
-#endif
 	case ISP_BLC_ID_BE_LE:
 		blc_id = ISP_BLK_ID_BLC5;
 		break;
-#if !defined( __SOC_PHOBOS__)
 	case ISP_BLC_ID_BE_SE:
 		blc_id = ISP_BLK_ID_BLC6;
 		break;
-#endif
 	default:
 		break;
 	}
@@ -1312,7 +1280,6 @@ int wbg_find_hwid(int id)
 	case ISP_WBG_ID_FE0_RGBMAP_LE:
 		wbg_id = ISP_BLK_ID_WBG2;
 		break;
-#if !defined( __SOC_PHOBOS__)
 	case ISP_WBG_ID_FE0_RGBMAP_SE:
 		wbg_id = ISP_BLK_ID_WBG3;
 		break;
@@ -1325,15 +1292,12 @@ int wbg_find_hwid(int id)
 	case ISP_WBG_ID_FE2_RGBMAP_LE:
 		wbg_id = ISP_BLK_ID_WBG6;
 		break;
-#endif
 	case ISP_WBG_ID_RAW_TOP_LE:
 		wbg_id = ISP_BLK_ID_WBG0;
 		break;
-#if !defined( __SOC_PHOBOS__)
 	case ISP_WBG_ID_RAW_TOP_SE:
 		wbg_id = ISP_BLK_ID_WBG1;
 		break;
-#endif
 	default:
 		break;
 	}
@@ -1826,9 +1790,7 @@ int isp_frm_err_handler(struct isp_ctx *ctx, const enum cvi_isp_raw err_raw_num,
 
 		while (--cnt > 0) {
 			if ((ISP_RD_REG(fe0, REG_PRE_RAW_FE_T, FE_IDLE_INFO) == 0x3F) &&
-#if !defined( __SOC_PHOBOS__)
 				(ISP_RD_REG(fe1, REG_PRE_RAW_FE_T, FE_IDLE_INFO) == 0x3F) &&
-#endif
 				((ISP_RD_REG(be, REG_PRE_RAW_BE_T, BE_IP_IDLE_INFO) & 0x1F003F) == 0x1F003F) &&
 				(ISP_RD_REG(isptopb, REG_ISP_TOP_T, BLK_IDLE)) == 0x3FF) {
 				vi_pr(VI_INFO, "FE/BE/ISP idle done, count(%d)\n", cnt);
@@ -2010,19 +1972,6 @@ void _ispblk_dma_slice_config(struct isp_ctx *ctx, int dmaid, int en)
 {
 	uintptr_t dmab = ctx->phys_regs[dmaid];
 
-#if defined( __SOC_PHOBOS__)
-	switch (dmaid) {
-	case ISP_BLK_ID_DMA_CTL29://raw crop SE
-	case ISP_BLK_ID_DMA_CTL23://be_se_wdma_ctl
-	case ISP_BLK_ID_DMA_CTL11://fe0 rgbmap SE
-	case ISP_BLK_ID_DMA_CTL33://MANR_P_SE
-	case ISP_BLK_ID_DMA_CTL35://MANR_C_SE
-		return;
-	default:
-		break;
-	}
-#endif
-
 	ISP_WR_BITS(dmab, REG_ISP_DMA_CTL_T, DMA_SLICESIZE, SLICE_SIZE, 1);
 	ISP_WR_BITS(dmab, REG_ISP_DMA_CTL_T, SYS_CONTROL, SLICE_ENABLE, en);
 
@@ -2114,15 +2063,7 @@ void ispblk_slice_buf_config(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num
 			r_ring_buf_en.raw |= ((is_sub_slice_en) ? ((1 << MANR_CUR_SE) | (1 << MANR_PREV_SE)) : 0);
 		}
 
-#if defined( __SOC_PHOBOS__)
-		ISP_WR_REG(wdma_com_0, REG_WDMA_CORE_T, RING_BUFFER_EN, w_ring_buf_en.raw);
-		ISP_WR_REG(wdma_com_0, REG_WDMA_CORE_T, RING_BUFFER_SIZE2, slc_b_cfg.sub_path.le_buf_size);
-		ISP_WR_REG(wdma_com_0, REG_WDMA_CORE_T, RING_BUFFER_SIZE3, slc_b_cfg.main_path.le_buf_size);
-		ISP_WR_REG(rdma_com, REG_RDMA_CORE_T, RING_BUFFER_EN, r_ring_buf_en.raw);
-		ISP_WR_REG(rdma_com, REG_RDMA_CORE_T, RING_BUFFER_SIZE1, slc_b_cfg.main_path.le_buf_size);
-		ISP_WR_REG(rdma_com, REG_RDMA_CORE_T, RING_BUFFER_SIZE4, slc_b_cfg.sub_path.le_buf_size);
-		ISP_WR_REG(rdma_com, REG_RDMA_CORE_T, RING_BUFFER_SIZE6, slc_b_cfg.sub_path.le_buf_size);
-#else
+
 		ISP_WR_REG(wdma_com_0, REG_WDMA_CORE_T, RING_BUFFER_EN, w_ring_buf_en.raw);
 		ISP_WR_REG(wdma_com_0, REG_WDMA_CORE_T, RING_BUFFER_SIZE4, slc_b_cfg.sub_path.le_buf_size);
 		ISP_WR_REG(wdma_com_0, REG_WDMA_CORE_T, RING_BUFFER_SIZE5, slc_b_cfg.sub_path.se_buf_size);
@@ -2135,7 +2076,7 @@ void ispblk_slice_buf_config(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num
 		ISP_WR_REG(rdma_com, REG_RDMA_CORE_T, RING_BUFFER_SIZE5, slc_b_cfg.sub_path.se_buf_size);
 		ISP_WR_REG(rdma_com, REG_RDMA_CORE_T, RING_BUFFER_SIZE6, slc_b_cfg.sub_path.le_buf_size);
 		ISP_WR_REG(rdma_com, REG_RDMA_CORE_T, RING_BUFFER_SIZE7, slc_b_cfg.sub_path.se_buf_size);
-#endif
+
 		_ispblk_dma_slice_config(ctx, ISP_BLK_ID_DMA_CTL10, false);
 		_ispblk_dma_slice_config(ctx, ISP_BLK_ID_DMA_CTL32, false);
 		_ispblk_dma_slice_config(ctx, ISP_BLK_ID_DMA_CTL34, false);

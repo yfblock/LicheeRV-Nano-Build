@@ -19,6 +19,7 @@ echo "========== 步骤 2: 编译 =========="
 cd "${SCRIPT_DIR}"
 source ../../../build/envsetup_soc.sh
 olddefconfig
+make
 
 # ./build.sh
 if [[ ! -f "${BUILD_DIR}/${KO_NAME}" ]]; then
