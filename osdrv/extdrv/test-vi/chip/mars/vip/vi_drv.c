@@ -1888,7 +1888,6 @@ void vi_calculate_slice_buf_setting(struct isp_ctx *ctx, enum cvi_isp_raw raw_nu
 	sub_le_num  = (h + sub_max_grid_size - 1) / sub_max_grid_size + line_delay / sub_max_grid_size + buffer;
 	sub_le_size = VI_256_ALIGN(sub_le_num *
 			(((((w + sub_max_grid_size - 1) / sub_max_grid_size) * 48 + 127) >> 7) << 4));
-#if 1
 	// Calculate the r/w threshold
 	if (ctx->isp_pipe_cfg[raw_num].is_hdr_on)
 		main_le_r_th = 2 * main_max_grid_size;
@@ -1899,33 +1898,19 @@ void vi_calculate_slice_buf_setting(struct isp_ctx *ctx, enum cvi_isp_raw raw_nu
 
 	sub_le_r_th = min_r_th;
 	sub_le_w_th = (line_delay / sub_max_grid_size) + buffer - 1;
-#else //tmp change r_th to 2, wait for brian
-	// Calculate the r/w threshold
-	main_le_r_th = 2;
-	main_le_w_th = main_le_num - 1;
 
-	sub_le_r_th = 2;
-	sub_le_w_th = (line_delay / max_grid_size) + buffer - 1;
-#endif
 	if (ctx->isp_pipe_cfg[raw_num].is_hdr_on) {
 		main_se_num = 2 * main_max_grid_size + buffer;
 		main_se_size = VI_256_ALIGN(main_se_num * ((w * 3) / 2));
 		sub_se_num  = (h + sub_max_grid_size - 1) / sub_max_grid_size + buffer;
 		sub_se_size = VI_256_ALIGN(sub_se_num *
 				(((((w + sub_max_grid_size - 1) / sub_max_grid_size) * 48 + 127) >> 7) << 4));
-#if 1
 		main_se_r_th = 2 * main_max_grid_size;
 		main_se_w_th = main_se_num - 1;
 
 		sub_se_r_th = min_r_th;
 		sub_se_w_th = buffer - 1;
-#else //tmp change r_th to 2, wait for brian
-		main_se_r_th = 2;//2 * max_grid_size;
-		main_se_w_th = main_se_num - 1;
 
-		sub_se_r_th = 2;//min_r_th;
-		sub_se_w_th = buffer - 1;
-#endif
 	}
 
 	slc_b_cfg.main_path.le_buf_size = main_le_size;

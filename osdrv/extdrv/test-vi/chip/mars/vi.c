@@ -34,11 +34,6 @@
 #define VI_PROFILE
 #define VI_MAX_SNS_CFG_NUM	(0x10)
 
-/* In practical application, it is necessary to drop the frame of AE convergence process.
- * But in vi-vpss online & vpss-vc sbm scenario, there is no way to drop the frame.
- * Use cover with black to avoid this problem.
- */
-#define COVER_WITH_BLACK
 /*******************************************************
  *  Global variables
  ******************************************************/
@@ -121,20 +116,6 @@ static int64_t _mempool_pop(uint32_t size)
 	isp_mempool.byteused += size;
 
 	return addr;
-}
-
-static CVI_VOID vi_gdc_callback(CVI_VOID *pParam, VB_BLK blk)
-{
-	struct _vi_gdc_cb_param *_pParam = pParam;
-
-	if (!pParam)
-		return;
-
-	vi_pr(VI_DBG, "ViChn(%d) usage(%d)\n", _pParam->chn.s32ChnId, _pParam->usage);
-	mutex_unlock(&g_vi_mesh[_pParam->chn.s32ChnId].lock);
-	if (blk != VB_INVALID_HANDLE)
-		vb_done_handler(_pParam->chn, CHN_TYPE_OUT, blk);
-	vfree(pParam);
 }
 
 static CVI_S32 _mesh_gdc_do_op_cb(enum GDC_USAGE usage, const CVI_VOID *pUsageParam,
@@ -1612,14 +1593,9 @@ static void _isp_yuvtop_init(struct cvi_vi_dev *vdev)
 	ispblk_cnr_config(ictx, false, false, 255, 0);
 	ispblk_pre_ee_config(ictx, true);
 	ispblk_ee_config(ictx, false);
-#ifdef COVER_WITH_BLACK
 	memset(ycur_data, 0, sizeof(ycur_data));
 	ispblk_ycur_config(ictx, false, 0, ycur_data);
 	ispblk_ycur_enable(ictx, true, 0);
-#else
-	ispblk_ycur_config(ictx, false, 0, ycur_data);
-	ispblk_ycur_enable(ictx, false, 0);
-#endif
 	ispblk_dci_config(ictx, true, ictx->gamma_tbl_idx, dci_map_lut_50, 0);
 	ispblk_ldci_config(ictx, false, 0);
 
@@ -2140,6 +2116,7 @@ int vi_dqbuf(struct _vi_buffer *b)
 static int _vi_call_cb(u32 m_id, u32 cmd_id, void *data)
 {
 	struct base_exe_m_cb exe_cb;
+	pr_info("_vi_call_cb m_id=%u cmd_id=%u\n", m_id, cmd_id);
 
 	exe_cb.callee = m_id;
 	exe_cb.caller = E_MODULE_VI;
@@ -2778,7 +2755,6 @@ int vi_start_streaming(struct cvi_vi_dev *vdev)
 {
 	struct cif_attr_s cif_attr;
 	struct isp_ctx *ctx = &vdev->ctx;
-	enum cvi_isp_raw dev_num = ISP_PRERAW_A;
 	enum cvi_isp_raw raw_num = ISP_PRERAW_A;
 	enum cvi_isp_raw raw_max = ISP_PRERAW_MAX - 1;
 	int rc = 0;
@@ -2799,181 +2775,26 @@ int vi_start_streaming(struct cvi_vi_dev *vdev)
 	for (raw_num = ISP_PRERAW_A; raw_num < ISP_PRERAW_MAX; raw_num++)
 		isp_streaming(ctx, false, raw_num);
 
-	/* cif lvds reset */
-	_vi_call_cb(E_MODULE_CIF, CIF_CB_RESET_LVDS, &dev_num);
-	if (ctx->is_multi_sensor) {
-		for (raw_num = ISP_PRERAW_B; raw_num < gViCtx->total_dev_num; raw_num++) {
-			dev_num = raw_num;
-			_vi_call_cb(E_MODULE_CIF, CIF_CB_RESET_LVDS, &dev_num);
-		}
-	}
+	raw_num = 0;
+	/* Get stagger vsync info from cif */
+	cif_attr.devno = raw_num;
 
-	for (raw_num = ISP_PRERAW_A; raw_num < ISP_PRERAW_MAX; raw_num++) {
-		/* Get stagger vsync info from cif */
-		cif_attr.devno = raw_num;
+	ctx->isp_pipe_cfg[raw_num].is_patgen_en = csi_patgen_en[raw_num];
 
-		if (!ctx->isp_pipe_enable[raw_num])
-			continue;
+	_vi_ctrl_init(raw_num, vdev);
+	_vi_pre_fe_ctrl_setup(raw_num, vdev);
 
-		if (_vi_call_cb(E_MODULE_CIF, CIF_CB_GET_CIF_ATTR, &cif_attr) == 0)
-			ctx->isp_pipe_cfg[raw_num].is_stagger_vsync = cif_attr.stagger_vsync;
-
-		ctx->isp_pipe_cfg[raw_num].is_patgen_en = csi_patgen_en[raw_num];
-
-		if (ctx->isp_pipe_cfg[raw_num].is_patgen_en) {
-#ifndef PORTING_TEST
-			vdev->usr_fmt.width = vdev->snr_info[raw_num].snr_fmt.img_size[0].active_w;
-			vdev->usr_fmt.height = vdev->snr_info[raw_num].snr_fmt.img_size[0].active_h;
-			vdev->usr_crop.width = vdev->snr_info[raw_num].snr_fmt.img_size[0].active_w;
-			vdev->usr_crop.height = vdev->snr_info[raw_num].snr_fmt.img_size[0].active_h;
-#else
-			vdev->usr_fmt.width = 1920;
-			vdev->usr_fmt.height = 1080;
-			vdev->usr_crop.width = 1920;
-			vdev->usr_crop.height = 1080;
-#endif
-			vdev->usr_fmt.code = ISP_BAYER_TYPE_BG;
-			vdev->usr_crop.left = 0;
-			vdev->usr_crop.top = 0;
-
-			vi_pr(VI_WARN, "patgen enable, w_h(%d:%d), color mode(%d)\n",
-					vdev->usr_fmt.width, vdev->usr_fmt.height, vdev->usr_fmt.code);
-		}
-
-		_vi_ctrl_init(raw_num, vdev);
-		if (!ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw)
-			_vi_pre_fe_ctrl_setup(raw_num, vdev);
-		if (!ctx->is_multi_sensor) { //only single sensor maybe break
-			if (_is_all_online(ctx) ||
-				(_is_fe_be_online(ctx) && ctx->is_slice_buf_on)) {
-				vi_pr(VI_INFO, "on-the-fly mode or slice_buffer is on\n");
-				break;
-			}
-		}
-
-		if (!ctx->isp_pipe_cfg[raw_num].is_offline_preraw) {
-			if (!ctx->isp_pipe_cfg[raw_num].is_yuv_bypass_path) { //RGB sensor
-				_set_init_state(vdev, raw_num, ISP_FE_CH0);
-				isp_pre_trig(ctx, raw_num, ISP_FE_CH0);
-				if (ctx->isp_pipe_cfg[raw_num].is_hdr_on && !ctx->is_synthetic_hdr_on) {
-					_set_init_state(vdev, raw_num, ISP_FE_CH1);
-					isp_pre_trig(ctx, raw_num, ISP_FE_CH1);
-				}
-
-			} else { //YUV sensor
-				u8 total_chn = (raw_num == ISP_PRERAW_A) ?
-						ctx->rawb_chnstr_num :
-						ctx->total_chn_num - ctx->rawb_chnstr_num;
-				u8 chn_str = 0;
-
-				for (; chn_str < total_chn; chn_str++) {
-					_set_init_state(vdev, raw_num, chn_str);
-					isp_pre_trig(ctx, raw_num, chn_str);
-				}
-			}
-		}
-
-		if (ctx->isp_pipe_cfg[raw_num].is_mux &&
-			ctx->isp_pipe_cfg[raw_num].muxSwitchGpio.switchGpioPin != -1U) {
-			rc = gpio_request(ctx->isp_pipe_cfg[raw_num].muxSwitchGpio.switchGpioPin, "switch_gpio");
-			if (rc) {
-				vi_pr(VI_ERR, "request for switch_gpio_%d failed:%d\n",
-					ctx->isp_pipe_cfg[raw_num].muxSwitchGpio.switchGpioPin, rc);
-				return 0;
-			}
-
-			gpio_direction_output(ctx->isp_pipe_cfg[raw_num].muxSwitchGpio.switchGpioPin,
-					ctx->isp_pipe_cfg[raw_num].muxSwitchGpio.switchGpioPol);
-
-			vi_pr(VI_DBG, "raw_num_%d switch_gpio_%d is_mux\n", raw_num,
-				ctx->isp_pipe_cfg[raw_num].muxSwitchGpio.switchGpioPin);
-		}
-	}
+	_set_init_state(vdev, raw_num, ISP_FE_CH0);
+	isp_pre_trig(ctx, raw_num, ISP_FE_CH0);
 
 	_vi_preraw_be_init(vdev);
 	_vi_postraw_ctrl_setup(vdev);
 	_vi_dma_setup(ctx, raw_max);
 	_vi_dma_set_sw_mode(ctx);
 
-	vi_pr(VI_INFO, "ISP scene path, be_off=%d, post_off=%d, slice_buff_on=%d\n",
-			ctx->is_offline_be, ctx->is_offline_postraw, ctx->is_slice_buf_on);
+	_viBWCalSet(vdev);
 
-	if (_is_all_online(ctx)) {
-		raw_num = ISP_PRERAW_A;
-
-		if (ctx->isp_pipe_cfg[raw_num].is_offline_scaler) { //offline mode
-			if (!ctx->isp_pipe_cfg[raw_num].is_offline_preraw)
-				isp_pre_trig(ctx, raw_num, ISP_FE_CH0);
-
-			_postraw_outbuf_enq(vdev, raw_num);
-		} else { //online mode
-			struct sc_cfg_cb post_para = {0};
-
-			/* VI Online VPSS sc cb trigger */
-			post_para.snr_num = raw_num;
-			post_para.is_tile = false;
-			post_para.bypass_num = gViCtx->bypass_frm[raw_num];
-			if (_vi_call_cb(E_MODULE_VPSS, VPSS_CB_VI_ONLINE_TRIGGER, &post_para) != 0) {
-				vi_pr(VI_INFO, "sc is not ready. try later\n");
-			} else {
-				atomic_set(&vdev->ol_sc_frm_done, 0);
-
-				if (!ctx->isp_pipe_cfg[raw_num].is_offline_preraw)
-					isp_pre_trig(ctx, raw_num, ISP_FE_CH0);
-			}
-		}
-	} else if (_is_fe_be_online(ctx) && ctx->is_slice_buf_on) {
-		raw_num = ISP_PRERAW_A;
-
-		if (ctx->isp_pipe_cfg[raw_num].is_offline_scaler) { //offline mode
-			_postraw_outbuf_enq(vdev, raw_num);
-
-			isp_post_trig(ctx, raw_num);
-
-			if (!ctx->isp_pipe_cfg[raw_num].is_offline_preraw) {
-				if (!ctx->isp_pipe_cfg[raw_num].is_yuv_bypass_path) { //RGB sensor
-					isp_pre_trig(ctx, raw_num, ISP_FE_CH0);
-					if (ctx->isp_pipe_cfg[raw_num].is_hdr_on)
-						isp_pre_trig(ctx, raw_num, ISP_FE_CH1);
-				}
-			}
-
-			atomic_set(&vdev->pre_be_state[ISP_BE_CH0], ISP_PRE_BE_RUNNING);
-		} else { //online mode
-			struct sc_cfg_cb post_para = {0};
-
-			/* VI Online VPSS sc cb trigger */
-			post_para.snr_num = raw_num;
-			post_para.is_tile = false;
-			post_para.bypass_num = gViCtx->bypass_frm[raw_num];
-			if (_vi_call_cb(E_MODULE_VPSS, VPSS_CB_VI_ONLINE_TRIGGER, &post_para) != 0) {
-				vi_pr(VI_INFO, "sc is not ready. try later\n");
-			} else {
-				atomic_set(&vdev->ol_sc_frm_done, 0);
-
-				isp_post_trig(ctx, raw_num);
-
-				if (!ctx->isp_pipe_cfg[raw_num].is_offline_preraw) {
-					isp_pre_trig(ctx, raw_num, ISP_FE_CH0);
-					if (ctx->isp_pipe_cfg[raw_num].is_hdr_on)
-						isp_pre_trig(ctx, raw_num, ISP_FE_CH1);
-				}
-
-				atomic_set(&vdev->pre_be_state[ISP_BE_CH0], ISP_PRE_BE_RUNNING);
-			}
-		}
-	}
-
-	if (bw_en) {
-		_viBWCalSet(vdev);
-	}
-
-	for (raw_num = ISP_PRERAW_A; raw_num < ISP_PRERAW_MAX; raw_num++) {
-		if (!ctx->isp_pipe_enable[raw_num])
-			continue;
-		isp_streaming(ctx, true, raw_num);
-	}
-
+	isp_streaming(ctx, true, 0);
 
 	return rc;
 }
@@ -3139,41 +2960,19 @@ static int _pre_be_outbuf_enque(
 {
 	struct isp_ctx *ctx = &vdev->ctx;
 
-	if (!ctx->isp_pipe_cfg[raw_num].is_yuv_bypass_path) { //RGB sensor
-		enum ISP_BLK_ID_T pre_be_dma = (hw_chn_num == ISP_BE_CH0) ?
-						ISP_BLK_ID_DMA_CTL22 : ISP_BLK_ID_DMA_CTL23;
-		struct isp_queue *be_out_q = (hw_chn_num == ISP_BE_CH0) ?
-						&pre_be_out_q : &pre_be_out_se_q;
-		struct isp_buffer *b = NULL;
+	enum ISP_BLK_ID_T pre_be_dma = (hw_chn_num == ISP_BE_CH0) ?
+					ISP_BLK_ID_DMA_CTL22 : ISP_BLK_ID_DMA_CTL23;
+	struct isp_queue *be_out_q = (hw_chn_num == ISP_BE_CH0) ?
+					&pre_be_out_q : &pre_be_out_se_q;
+	struct isp_buffer *b = NULL;
 
-		b = isp_next_buf(be_out_q);
-		if (!b) {
-			vi_pr(VI_DBG, "pre_be chn_num_%d outbuf is empty\n", hw_chn_num);
-			return 0;
-		}
-
-		ispblk_dma_setaddr(ctx, pre_be_dma, b->addr);
-	} else if (ctx->is_multi_sensor &&
-		   ctx->isp_pipe_cfg[raw_num].is_yuv_bypass_path) { //RGB+YUV sensor
-		u8 buf_chn = vdev->ctx.rawb_chnstr_num + hw_chn_num;
-		enum ISP_BLK_ID_T pre_fe_dma;
-		struct isp_queue *fe_out_q = &pre_out_queue[buf_chn];
-		struct isp_buffer *b = NULL;
-
-		if (raw_num == ISP_PRERAW_C) {
-			pre_fe_dma = (buf_chn == ctx->rawb_chnstr_num) ? ISP_BLK_ID_DMA_CTL18 : ISP_BLK_ID_DMA_CTL19;
-		} else {
-			pre_fe_dma = (buf_chn == ctx->rawb_chnstr_num) ? ISP_BLK_ID_DMA_CTL12 : ISP_BLK_ID_DMA_CTL13;
-		}
-
-		b = isp_next_buf(fe_out_q);
-		if (!b) {
-			vi_pr(VI_DBG, "pre_fe_%d buf_chn_num_%d outbuf is empty\n", raw_num, buf_chn);
-			return 0;
-		}
-
-		ispblk_dma_setaddr(ctx, pre_fe_dma, b->addr);
+	b = isp_next_buf(be_out_q);
+	if (!b) {
+		vi_pr(VI_DBG, "pre_be chn_num_%d outbuf is empty\n", hw_chn_num);
+		return 0;
 	}
+
+	ispblk_dma_setaddr(ctx, pre_be_dma, b->addr);
 
 	return 1;
 }
@@ -4708,21 +4507,10 @@ static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 	long rc = -EINVAL;
 	struct isp_ctx *ctx = &vdev->ctx;
 
-	pr_info("_vi_s_ctrl id=%u (%s)\n", id, _vi_s_ctrl_id_to_string(id));
-
 	switch (id) {
 	case VI_IOCTL_SDK_CTRL:
 	{
 		rc = vi_sdk_ctrl(vdev, p);
-		break;
-	}
-
-	case VI_IOCTL_HDR:
-	{
-		ctx->is_hdr_on = p->value;
-		ctx->isp_pipe_cfg[ISP_PRERAW_A].is_hdr_on = p->value;
-		vi_pr(VI_INFO, "HDR_ON(%d) for test\n", ctx->is_hdr_on);
-		rc = 0;
 		break;
 	}
 
@@ -4743,22 +4531,6 @@ static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 
 		break;
 	}
-
-	case VI_IOCTL_3DNR:
-		ctx->is_3dnr_on = p->value;
-		vi_pr(VI_INFO, "is_3dnr_on=%d\n", ctx->is_3dnr_on);
-		rc = 0;
-		break;
-
-	case VI_IOCTL_TILE:
-		rc = 0;
-		break;
-
-	case VI_IOCTL_COMPRESS_EN:
-		ctx->is_dpcm_on = p->value;
-		vi_pr(VI_INFO, "ISP_COMPRESS_ON(%d)\n", ctx->is_dpcm_on);
-		rc = 0;
-		break;
 
 	case VI_IOCTL_STS_PUT:
 	{
@@ -4795,123 +4567,6 @@ static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 		rc = 0;
 		break;
 	}
-
-	case VI_IOCTL_USR_PIC_CFG:
-	{
-		struct cvi_isp_usr_pic_cfg cfg;
-
-		if (copy_from_user(&cfg, p->ptr, sizeof(struct cvi_isp_usr_pic_cfg)))
-			break;
-
-		if ((cfg.crop.width < 32) || (cfg.crop.width > 4096)
-			|| (cfg.crop.left > cfg.crop.width) || (cfg.crop.top > cfg.crop.height)) {
-			vi_pr(VI_ERR, "USR_PIC_CFG:(Invalid Param) w(%d) h(%d) x(%d) y(%d)",
-				cfg.crop.width, cfg.crop.height, cfg.crop.left, cfg.crop.top);
-		} else {
-			vdev->usr_fmt = cfg.fmt;
-			vdev->usr_crop = cfg.crop;
-
-			vdev->ctx.isp_pipe_cfg[ISP_PRERAW_A].csibdg_width	= vdev->usr_fmt.width;
-			vdev->ctx.isp_pipe_cfg[ISP_PRERAW_A].csibdg_height	= vdev->usr_fmt.height;
-			vdev->ctx.isp_pipe_cfg[ISP_PRERAW_A].max_width		= vdev->usr_fmt.width;
-			vdev->ctx.isp_pipe_cfg[ISP_PRERAW_A].max_height 	= vdev->usr_fmt.height;
-
-			rc = 0;
-		}
-
-		break;
-	}
-
-	case VI_IOCTL_USR_PIC_ONOFF:
-	{
-		vdev->isp_source = p->value;
-		ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw =
-			(vdev->isp_source == CVI_ISP_SOURCE_FE);
-
-		vi_pr(VI_INFO, "vdev->isp_source=%d\n", vdev->isp_source);
-		vi_pr(VI_INFO, "ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw=%d\n",
-			ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw);
-
-		rc = 0;
-		break;
-	}
-
-	case VI_IOCTL_PUT_PIPE_DUMP:
-	{
-		u32 raw_num = 0;
-
-		raw_num = p->value;
-
-		if (isp_byr[raw_num]) {
-			vfree(isp_byr[raw_num]);
-			isp_byr[raw_num] = NULL;
-		}
-
-		if (isp_byr_se[raw_num]) {
-			vfree(isp_byr_se[raw_num]);
-			isp_byr_se[raw_num] = NULL;
-		}
-
-		rc = 0;
-		break;
-	}
-
-	case VI_IOCTL_USR_PIC_PUT:
-	{
-		if (ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw) {
-#if 1
-			u64 phy_addr = p->value64;
-			ispblk_dma_setaddr(ctx, ISP_BLK_ID_DMA_CTL4, phy_addr);
-			vdev->usr_pic_phy_addr[0] = phy_addr;
-			vi_pr(VI_INFO, "\nvdev->usr_pic_phy_addr(0x%llx)\n", vdev->usr_pic_phy_addr[0]);
-			rc = 0;
-
-			if (vdev->usr_pic_delay)
-				usr_pic_timer_init(vdev);
-#else //for vip_FPGA test
-			uint64_t bufaddr = 0;
-			uint32_t bufsize = 0;
-
-			bufaddr = _mempool_get_addr();
-			bufsize = ispblk_dma_config(ctx, ISP_BLK_ID_RDMA0, bufaddr);
-			_mempool_pop(bufsize);
-
-			vi_pr(VI_WARN, "\nRDMA0 base_addr=0x%x\n", bufaddr);
-
-			vdev->usr_pic_phy_addr = bufaddr;
-			rc = 0;
-#endif
-		}
-		break;
-	}
-
-	case VI_IOCTL_USR_PIC_TIMING:
-	{
-		if (p->value > 30)
-			vdev->usr_pic_delay = msecs_to_jiffies(33);
-		else if (p->value > 0)
-			vdev->usr_pic_delay = msecs_to_jiffies(1000 / p->value);
-		else
-			vdev->usr_pic_delay = 0;
-
-		if (!vdev->usr_pic_delay)
-			usr_pic_time_remove();
-
-		rc = 0;
-		break;
-	}
-
-	case VI_IOCTL_ONLINE:
-		ctx->is_offline_postraw = !p->value;
-		vi_pr(VI_INFO, "is_offline_postraw=%d\n", ctx->is_offline_postraw);
-		rc = 0;
-		break;
-
-	case VI_IOCTL_BE_ONLINE:
-		ctx->is_offline_be = !p->value;
-		vi_pr(VI_INFO, "is_offline_be=%d\n", ctx->is_offline_be);
-		rc = 0;
-		break;
 
 	case VI_IOCTL_SET_SNR_CFG_NODE:
 	{
@@ -4992,70 +4647,6 @@ static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 		break;
 	}
 
-	case VI_IOCTL_SC_ONLINE:
-	{
-		struct cvi_isp_sc_online sc_online;
-
-		if (copy_from_user(&sc_online, p->ptr, sizeof(struct cvi_isp_sc_online)) != 0)
-			break;
-
-		//Currently both sensor are needed to be online or offline at same time.
-		ctx->isp_pipe_cfg[sc_online.raw_num].is_offline_scaler = !sc_online.is_sc_online;
-		vi_pr(VI_WARN, "raw_num_%d set is_offline_scaler:%d\n",
-				  sc_online.raw_num, !sc_online.is_sc_online);
-		rc = 0;
-		break;
-	}
-
-	case VI_IOCTL_AWB_STS_PUT:
-	{
-		rc = 0;
-		break;
-	}
-
-	case VI_IOCTL_ENQ_BUF:
-	{
-		struct vi_buffer    buf;
-		struct cvi_isp_buf *qbuf;
-		u8 pre_trig = false, post_trig = false;
-
-		if (copy_from_user(&buf, p->ptr, sizeof(buf))) {
-			vi_pr(VI_ERR, "VI_IOCTL_ENQ_BUF, copy_from_user failed.\n");
-			rc = -ENOMEM;
-			break;
-		}
-
-		qbuf = kzalloc(sizeof(struct cvi_isp_buf), GFP_ATOMIC);
-		if (qbuf == NULL) {
-			vi_pr(VI_ERR, "QBUF kzalloc size(%zu) fail\n", sizeof(struct cvi_isp_buf));
-			rc = -ENOMEM;
-			break;
-		}
-
-		vdev->chn_id = buf.index;
-		memcpy(&qbuf->buf, &buf, sizeof(buf));
-
-		if (_is_all_online(ctx) &&
-			cvi_isp_rdy_buf_empty(vdev, ISP_PRERAW_A) &&
-			vdev->pre_fe_frm_num[ISP_PRERAW_A][ISP_FE_CH0] > 0) {
-			pre_trig = true;
-		} else if (_is_fe_be_online(ctx)) { //fe->be->dram->post
-			if (cvi_isp_rdy_buf_empty(vdev, vdev->chn_id) &&
-				vdev->postraw_frame_number[ISP_PRERAW_A] > 0) {
-				vi_pr(VI_DBG, "chn_%d buf empty, trigger post\n", vdev->chn_id);
-				post_trig = true;
-			}
-		}
-
-		cvi_isp_buf_queue(vdev, qbuf);
-
-		if (pre_trig || post_trig)
-			tasklet_hi_schedule(&vdev->job_work);
-
-		rc = 0;
-		break;
-	}
-
 	case VI_IOCTL_SET_DMA_BUF_INFO:
 	{
 		struct cvi_vi_dma_buf_info info;
@@ -5075,40 +4666,6 @@ static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 		break;
 	}
 
-	case VI_IOCTL_START_STREAMING:
-	{
-		if (vi_start_streaming(vdev)) {
-			vi_pr(VI_ERR, "Failed to vi start streaming\n");
-			break;
-		}
-
-		atomic_set(&vdev->isp_streamon, 1);
-
-		rc = 0;
-		break;
-	}
-
-	case VI_IOCTL_STOP_STREAMING:
-	{
-		if (vi_stop_streaming(vdev)) {
-			vi_pr(VI_ERR, "Failed to vi stop streaming\n");
-			break;
-		}
-
-		atomic_set(&vdev->isp_streamon, 0);
-
-		rc = 0;
-		break;
-	}
-
-	case VI_IOCTL_SET_SLICE_BUF_EN:
-	{
-		ctx->is_slice_buf_on = p->value;
-		vi_pr(VI_INFO, "ISP_SLICE_BUF_ON(%d)\n", ctx->is_slice_buf_on);
-		rc = 0;
-		break;
-	}
-
 	default:
 		break;
 	}
@@ -5122,7 +4679,7 @@ static long _vi_g_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 	long rc = -EINVAL;
 	struct isp_ctx *ctx = &vdev->ctx;
 
-	vi_pr(VI_INFO, "_vi_g_ctrl id=%u (%s)\n", id, _vi_s_ctrl_id_to_string(id));
+	vi_pr(VI_DBG, "_vi_g_ctrl id=%u (%s)\n", id, _vi_s_ctrl_id_to_string(id));
 
 	switch (id) {
 	case VI_IOCTL_STS_GET:
@@ -5209,26 +4766,6 @@ static long _vi_g_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 
 		vfree(isp_mem);
 
-		rc = 0;
-		break;
-	}
-
-	case VI_IOCTL_GET_PIPE_DUMP:
-	{
-		struct cvi_vip_isp_raw_blk dump[2];
-
-		if (copy_from_user(&dump[0], p->ptr, sizeof(struct cvi_vip_isp_raw_blk) * 2) != 0)
-			break;
-
-
-		rc = isp_raw_dump(vdev, &dump[0]);
-		if (copy_to_user(p->ptr, &dump[0], sizeof(struct cvi_vip_isp_raw_blk) * 2) != 0)
-			break;
-		break;
-	}
-
-	case VI_IOCTL_AWB_STS_GET:
-	{
 		rc = 0;
 		break;
 	}
@@ -5398,65 +4935,6 @@ static long _vi_g_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 		break;
 	}
 
-	case VI_IOCTL_GET_IP_INFO:
-	{
-		if (copy_to_user(p->ptr, &ip_info_list, sizeof(struct ip_info) * IP_INFO_ID_MAX) != 0) {
-			vi_pr(VI_ERR, "Failed to copy ip_info_list\n");
-			break;
-		}
-
-		rc = 0;
-		break;
-	}
-
-	case VI_IOCTL_GET_RGBMAP_LE_PHY_BUF:
-	{
-		struct cvi_vip_memblock *isp_mem;
-
-		isp_mem = vmalloc(sizeof(struct cvi_vip_memblock));
-		if (copy_from_user(isp_mem, p->ptr, sizeof(struct cvi_vip_memblock)) != 0) {
-			vfree(isp_mem);
-			break;
-		}
-
-		isp_mem->phy_addr = isp_bufpool[isp_mem->raw_num].rgbmap_le[0];
-		isp_mem->size = ispblk_dma_buf_get_size(ctx, ISP_BLK_ID_DMA_CTL10, isp_mem->raw_num);
-
-		if (copy_to_user(p->ptr, isp_mem, sizeof(struct cvi_vip_memblock)) != 0) {
-			vfree(isp_mem);
-			break;
-		}
-
-		vfree(isp_mem);
-
-		rc = 0;
-		break;
-	}
-
-	case VI_IOCTL_GET_RGBMAP_SE_PHY_BUF:
-	{
-		struct cvi_vip_memblock *isp_mem;
-
-		isp_mem = vmalloc(sizeof(struct cvi_vip_memblock));
-		if (copy_from_user(isp_mem, p->ptr, sizeof(struct cvi_vip_memblock)) != 0) {
-			vfree(isp_mem);
-			break;
-		}
-
-		isp_mem->phy_addr = isp_bufpool[isp_mem->raw_num].rgbmap_se[0];
-		isp_mem->size = ispblk_dma_buf_get_size(ctx, ISP_BLK_ID_DMA_CTL11, isp_mem->raw_num);
-
-		if (copy_to_user(p->ptr, isp_mem, sizeof(struct cvi_vip_memblock)) != 0) {
-			vfree(isp_mem);
-			break;
-		}
-
-		vfree(isp_mem);
-
-		rc = 0;
-		break;
-	}
-
 	default:
 		break;
 	}
@@ -5601,78 +5079,46 @@ int vi_cb(void *dev, enum ENUM_MODULES_ID caller, u32 cmd, void *arg)
 	struct cvi_vi_dev *vdev = (struct cvi_vi_dev *)dev;
 	struct isp_ctx *ctx = &vdev->ctx;
 	int rc = -1;
+	
+	VI_VPSS_MODE_S stVIVPSSMode;
+	CVI_U8   dev_num = 0;
+	CVI_BOOL vi_online = CVI_FALSE;
 
-	switch (cmd) {
-	case VI_CB_QBUF_TRIGGER:
-		vi_pr(VI_INFO, "isp_ol_sc_trig_post\n");
-
-		tasklet_hi_schedule(&vdev->job_work);
-
-		rc = 0;
-		break;
-	case VI_CB_SC_FRM_DONE:
-		vi_pr(VI_DBG, "sc frm done cb\n");
-
-		atomic_set(&vdev->ol_sc_frm_done, 1);
-		tasklet_hi_schedule(&vdev->job_work);
-
-		rc = 0;
-		break;
-	case VI_CB_SET_VIVPSSMODE:
-	{
-		VI_VPSS_MODE_S stVIVPSSMode;
-		CVI_U8   dev_num = 0;
-		CVI_BOOL vi_online = CVI_FALSE;
-
-		memcpy(&stVIVPSSMode, arg, sizeof(VI_VPSS_MODE_S));
-
-		vi_online = (stVIVPSSMode.aenMode[0] == VI_ONLINE_VPSS_ONLINE) ||
-			    (stVIVPSSMode.aenMode[0] == VI_ONLINE_VPSS_OFFLINE);
-
-		if (vi_online) {
-			ctx->is_offline_postraw = ctx->is_offline_be = !vi_online;
-
-			vi_pr(VI_DBG, "Caller_Mod(%d) set vi_online:%d, is_offline_postraw=%d, is_offline_be=%d\n",
-					caller, vi_online, ctx->is_offline_postraw, ctx->is_offline_be);
-		}
-
-		for (dev_num = 0; dev_num < VI_MAX_DEV_NUM; dev_num++) {
-			CVI_BOOL is_vpss_online = (stVIVPSSMode.aenMode[dev_num] == VI_ONLINE_VPSS_ONLINE) ||
-						  (stVIVPSSMode.aenMode[dev_num] == VI_OFFLINE_VPSS_ONLINE);
-
-			ctx->isp_pipe_cfg[dev_num].is_offline_scaler = !is_vpss_online;
-			vi_pr(VI_DBG, "raw_num_%d set is_offline_scaler:%d\n",
-					dev_num, !is_vpss_online);
-		}
-
-		rc = 0;
-		break;
+	if(cmd != VI_CB_SET_VIVPSSMODE) {
+		pr_info("-- vi_cb -------------------------------- \n");
+		pr_info("cmd: %d\n", cmd);
+		pr_info("caller: %d\n", caller);
+		pr_info("arg: %p\n", arg);
+		pr_info("cmd VI_CB_SET_VIVPSSMODE: %d\n", VI_CB_SET_VIVPSSMODE);
+		pr_info("cmd VI_CB_SC_FRM_DONE:    %d\n", VI_CB_SC_FRM_DONE);
+		pr_info("cmd VI_CB_QBUF_TRIGGER:   %d\n", VI_CB_QBUF_TRIGGER);
+		pr_info("cmd VI_CB_RESET_ISP:      %d\n", VI_CB_RESET_ISP);
+		pr_info("cmd VI_CB_GDC_OP_DONE:    %d\n", VI_CB_GDC_OP_DONE);
+		pr_info("-------------------------------- \n");
 	}
-	case VI_CB_RESET_ISP:
-	{
-		enum cvi_isp_raw raw_num = *(enum cvi_isp_raw *)arg;
 
-		atomic_set(&vdev->isp_err_handle_flag, 1);
+	memcpy(&stVIVPSSMode, arg, sizeof(VI_VPSS_MODE_S));
 
-		if (_is_be_post_online(ctx))
-			atomic_set(&vdev->pre_be_state[ISP_BE_CH0], ISP_PRE_BE_IDLE);
+	vi_online = (stVIVPSSMode.aenMode[0] == VI_ONLINE_VPSS_ONLINE) ||
+			(stVIVPSSMode.aenMode[0] == VI_ONLINE_VPSS_OFFLINE);
 
-		atomic_set(&vdev->postraw_state, ISP_POSTRAW_IDLE);
-		vi_err_wake_up_th(vdev, raw_num);
-		break;
+	if (vi_online) {
+		ctx->is_offline_postraw = ctx->is_offline_be = !vi_online;
+
+		vi_pr(VI_DBG, "Caller_Mod(%d) set vi_online:%d, is_offline_postraw=%d, is_offline_be=%d\n",
+				caller, vi_online, ctx->is_offline_postraw, ctx->is_offline_be);
 	}
-	case VI_CB_GDC_OP_DONE:
-	{
-		struct dwa_op_done_cfg *cfg =
-			(struct dwa_op_done_cfg *)arg;
 
-		vi_gdc_callback(cfg->pParam, cfg->blk);
-		rc = 0;
-		break;
+	for (dev_num = 0; dev_num < VI_MAX_DEV_NUM; dev_num++) {
+		CVI_BOOL is_vpss_online = (stVIVPSSMode.aenMode[dev_num] == VI_ONLINE_VPSS_ONLINE) ||
+						(stVIVPSSMode.aenMode[dev_num] == VI_OFFLINE_VPSS_ONLINE);
+
+		ctx->isp_pipe_cfg[dev_num].is_offline_scaler = !is_vpss_online;
+		vi_pr(VI_DBG, "raw_num_%d set is_offline_scaler:%d\n",
+				dev_num, !is_vpss_online);
 	}
-	default:
-		break;
-	}
+
+	rc = 0;
 
 	return rc;
 }

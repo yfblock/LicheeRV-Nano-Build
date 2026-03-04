@@ -97,48 +97,40 @@ echo "========== 传输方式: ${TRANSPORT} =========="
 
 echo "========== 步骤 2: 编译 =========="
 cd "${SCRIPT_DIR}"
-source ../../../build/envsetup_soc.sh
-olddefconfig
-make
+source ../../../build/envsetup_soc.sh >/dev/null 2>&1
+olddefconfig >/dev/null 2>&1
+make >/dev/null 
 
 if [[ ! -f "${BUILD_DIR}/${KO_NAME}" ]]; then
 	echo "错误: 未生成 ${BUILD_DIR}/${KO_NAME}"
 	exit 1
 fi
 
-echo ""
 echo "========== 步骤 3: 推送 test_vi.ko 到设备（${TRANSPORT}）=========="
 push_file "${BUILD_DIR}/${KO_NAME}" "${DEVICE_KO_PATH}"
 
-echo ""
 echo "========== 步骤 4: 卸载旧模块（若已挂载）并挂载新模块 =========="
 run_remote "rmmod test_vi 2>/dev/null || true"
+run_remote "dmesg -c >/dev/null || true"
 run_remote "insmod ${DEVICE_KO_PATH}"
 
-echo ""
 echo "========== 步骤 5: 清空 dmesg、删除已有 sample_0.yuv 并运行 sensor_test =========="
-run_remote "dmesg -c 2>/dev/null || true"
 run_remote "rm -f ${SAMPLE_YUV}"
-run_remote "cd /root && ${SENSOR_TEST}"
+run_remote "cd /root && ${SENSOR_TEST} >/dev/null 2>&1"
 if run_remote "test -f ${SAMPLE_YUV}" 2>/dev/null; then
 	echo "成功: 已生成 ${SAMPLE_YUV}"
 else
 	echo "警告: 未检测到 ${SAMPLE_YUV}，请检查 sensor_test 输出"
 fi
 
-echo ""
 echo "========== 步骤 6: 抓取完整 dmesg 并提取 test_vi 所用 ioctl/SDK id =========="
 mkdir -p "${BUILD_DIR}"
 run_remote_to_file "dmesg" "${BUILD_DIR}/dmesg_capture.txt"
 echo "已保存到 ${BUILD_DIR}/dmesg_capture.txt"
-grep -E "vi_ioctl cmd=.* id=[0-9]+|vi_sdk_ctrl id=[0-9]+" "${BUILD_DIR}/dmesg_capture.txt" | sed -nE 's/.* id=([0-9]+).*/\1/p' | sort -n -u > "${BUILD_DIR}/used_ids.txt" 2>/dev/null || true
-if [[ -s "${BUILD_DIR}/used_ids.txt" ]]; then
-	echo "本轮 sensor_test 用到的 id（可作白名单）: $(tr '\n' ' ' < "${BUILD_DIR}/used_ids.txt")"
-fi
 
-echo ""
 echo "========== 步骤 7: 查看 dmesg 尾部 =========="
-tail -n 80 "${BUILD_DIR}/dmesg_capture.txt"
+# tail -n 100 "${BUILD_DIR}/dmesg_capture.txt"
+cat "${BUILD_DIR}/dmesg_capture.txt"
 
 echo "========== 步骤 8: 拉取 sample_0.yuv 并生成 preview.png =========="
 rm -f "${BUILD_DIR}/sample_0.yuv" "${BUILD_DIR}/preview.png"

@@ -61,7 +61,6 @@ struct vi_rect {
 };
 
 
-void _reg_write_mask(uintptr_t addr, u32 mask, u32 data);
 int vip_sys_cif_cb(unsigned int cmd, void *arg);
 int vip_sys_cmm_cb_i2c(unsigned int cmd, void *arg);
 void vip_sys_reg_write_mask(uintptr_t addr, u32 mask, u32 data);

@@ -1182,9 +1182,7 @@ long vi_sdk_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 	long rc = -EINVAL;
 	gvdev = vdev;
 
-	if(0) {
-		pr_info("vi_sdk_ctrl id=%u (%s)\n", id, _vi_sdk_ctrl_id_to_string(id));
-	}
+	vi_pr(VI_DBG, "vi_sdk_ctrl id=%u (%s)\n", id, _vi_sdk_ctrl_id_to_string(id));
 
 	switch (id) {
 	case VI_SDK_SET_DEV_ATTR:
@@ -1217,11 +1215,6 @@ long vi_sdk_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 		rc = vi_enable_dev(p->sdk_cfg.dev);
 		break;
 	}
-	case VI_SDK_DISABLE_DEV:
-	{
-		rc = 0;
-		break;
-	}
 	case VI_SDK_CREATE_PIPE:
 	{
 		VI_PIPE_ATTR_S pipe_attr;
@@ -1234,19 +1227,9 @@ long vi_sdk_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 		rc = vi_create_pipe(p->sdk_cfg.pipe, &pipe_attr);
 		break;
 	}
-	case VI_SDK_DESTROY_PIPE:
-	{
-		rc = 0;
-		break;
-	}
 	case VI_SDK_START_PIPE:
 	{
 		rc = vi_start_pipe(p->sdk_cfg.pipe);
-		break;
-	}
-	case VI_SDK_STOP_PIPE:
-	{
-		rc = 0;
 		break;
 	}
 	case VI_SDK_SET_CHN_ATTR:
@@ -1259,19 +1242,6 @@ long vi_sdk_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 		}
 
 		rc = vi_set_chn_attr(p->sdk_cfg.pipe, p->sdk_cfg.chn, &chn_attr);
-		break;
-	}
-	case VI_SDK_GET_CHN_ATTR:
-	{
-		VI_CHN_ATTR_S chn_attr;
-
-		chn_attr = gViCtx->chnAttr[p->sdk_cfg.chn];
-		if (copy_to_user(p->sdk_cfg.ptr, &chn_attr, sizeof(VI_CHN_ATTR_S)) != 0) {
-			vi_pr(VI_ERR, "VI_DEV_ATTR_S copy to user fail.\n");
-			break;
-		}
-
-		rc = 0;
 		break;
 	}
 	case VI_SDK_ENABLE_CHN:
@@ -1296,66 +1266,11 @@ long vi_sdk_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 		rc = vi_set_motion_lv(mlv_i);
 		break;
 	}
-	case VI_SDK_ENABLE_DIS:
-	{
-		gViCtx->isDisEnable[p->sdk_cfg.pipe] = 1;
-
-		rc = 0;
-		break;
-	}
 	case VI_SDK_DISABLE_DIS:
 	{
 		gViCtx->isDisEnable[p->sdk_cfg.pipe] = 0;
 
 		rc = 0;
-		break;
-	}
-	case VI_SDK_SET_DIS_INFO:
-	{
-		struct dis_info_s dis_i;
-
-		if (copy_from_user(&dis_i, p->sdk_cfg.ptr, sizeof(struct dis_info_s)) != 0) {
-			vi_pr(VI_ERR, "struct dis_info_s copy from user fail.\n");
-			break;
-		}
-
-		rc = vi_set_dis_info(dis_i);
-		break;
-	}
-	case VI_SDK_SET_PIPE_FRM_SRC:
-	{
-		VI_PIPE_FRAME_SOURCE_E src;
-
-		if (copy_from_user(&src, p->sdk_cfg.ptr, sizeof(VI_PIPE_FRAME_SOURCE_E)) != 0) {
-			vi_pr(VI_ERR, "VI_PIPE_FRAME_SOURCE_E copy from user fail.\n");
-			break;
-		}
-
-		rc = vi_set_pipe_frame_source(p->sdk_cfg.pipe, src);
-		break;
-	}
-	case VI_SDK_SEND_PIPE_RAW:
-	{
-		VIDEO_FRAME_INFO_S v_frm_info;
-
-		if (copy_from_user(&v_frm_info, p->sdk_cfg.ptr, sizeof(VIDEO_FRAME_INFO_S)) != 0) {
-			vi_pr(VI_ERR, "VIDEO_FRAME_INFO_S copy from user fail.\n");
-			break;
-		}
-
-		rc = vi_send_pipe_raw(p->sdk_cfg.pipe, &v_frm_info);
-		break;
-	}
-	case VI_SDK_SET_DEV_TIMING_ATTR:
-	{
-		VI_DEV_TIMING_ATTR_S dev_timing_attr;
-
-		if (copy_from_user(&dev_timing_attr, p->sdk_cfg.ptr, sizeof(VI_DEV_TIMING_ATTR_S)) != 0) {
-			vi_pr(VI_ERR, "VI_DEV_TIMING_ATTR_S copy from user fail.\n");
-			break;
-		}
-
-		rc = vi_set_dev_timing_attr(p->sdk_cfg.dev, &dev_timing_attr);
 		break;
 	}
 	case VI_SDK_GET_CHN_FRAME:
@@ -1388,18 +1303,6 @@ long vi_sdk_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 		rc = vi_release_chn_frame(p->sdk_cfg.pipe, p->sdk_cfg.chn, &v_frm_info);
 		break;
 	}
-	case VI_SDK_SET_CHN_CROP:
-	{
-		VI_CROP_INFO_S chn_crop;
-
-		if (copy_from_user(&chn_crop, p->sdk_cfg.ptr, sizeof(VI_CROP_INFO_S)) != 0) {
-			vi_pr(VI_ERR, "VI_CROP_INFO_S copy from user fail.\n");
-			break;
-		}
-
-		rc = vi_set_chn_crop(p->sdk_cfg.pipe, p->sdk_cfg.chn, &chn_crop);
-		break;
-	}
 	case VI_SDK_GET_CHN_CROP:
 	{
 		VI_CROP_INFO_S chn_crop;
@@ -1415,182 +1318,6 @@ long vi_sdk_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 		}
 		break;
 	}
-	case VI_SDK_GET_PIPE_FRAME:
-	{
-		VIDEO_FRAME_INFO_S v_frm_info[2];
-
-		if (copy_from_user(v_frm_info, p->sdk_cfg.ptr, sizeof(VIDEO_FRAME_INFO_S) * 2) != 0) {
-			vi_pr(VI_ERR, "VIDEO_FRAME_INFO_S copy from user fail.\n");
-			break;
-		}
-
-		rc = vi_get_pipe_frame(p->sdk_cfg.pipe, v_frm_info, p->sdk_cfg.val);
-
-		if (copy_to_user(p->sdk_cfg.ptr, v_frm_info, sizeof(VIDEO_FRAME_INFO_S) * 2) != 0) {
-			vi_pr(VI_ERR, "VIDEO_FRAME_INFO_S copy to user fail.\n");
-			rc = -1;
-			break;
-		}
-		break;
-	}
-	case VI_SDK_RELEASE_PIPE_FRAME:
-	{
-		VIDEO_FRAME_INFO_S v_frm_info[2];
-
-		if (copy_from_user(v_frm_info, p->sdk_cfg.ptr, sizeof(VIDEO_FRAME_INFO_S) * 2) != 0) {
-			vi_pr(VI_ERR, "VIDEO_FRAME_INFO_S copy from user fail.\n");
-			break;
-		}
-
-		rc = vi_release_pipe_frame(p->sdk_cfg.pipe, v_frm_info);
-		break;
-	}
-	case VI_SDK_START_SMOOTH_RAWDUMP:
-	{
-		struct cvi_vip_isp_smooth_raw_param param;
-		struct cvi_vip_isp_raw_blk *raw_blk;
-		CVI_U32 size;
-
-		if (copy_from_user(&param, p->sdk_cfg.ptr, sizeof(struct cvi_vip_isp_smooth_raw_param)) != 0) {
-			vi_pr(VI_ERR, "cvi_vip_isp_smooth_raw_param copy from user fail.\n");
-			break;
-		}
-
-		size = sizeof(struct cvi_vip_isp_raw_blk) * param.frm_num;
-		raw_blk = kmalloc(size, GFP_KERNEL);
-		if (raw_blk == NULL) {
-			vi_pr(VI_ERR, "kmalloc failed need size(0x%x).\n", size);
-			rc = -ENOMEM;
-			break;
-		}
-
-		if (copy_from_user(raw_blk, (void __user *)param.raw_blk, size)) {
-			vi_pr(VI_ERR, "cvi_vip_isp_raw_blk copy from user fail.\n");
-			kfree(raw_blk);
-			break;
-		}
-
-		param.raw_blk = raw_blk;
-		rc = isp_start_smooth_raw_dump(vdev, &param);
-
-		kfree(raw_blk);
-		break;
-	}
-	case VI_SDK_STOP_SMOOTH_RAWDUMP:
-	{
-		struct cvi_vip_isp_smooth_raw_param param;
-
-		if (copy_from_user(&param, p->sdk_cfg.ptr, sizeof(struct cvi_vip_isp_smooth_raw_param)) != 0)
-			break;
-
-		rc = isp_stop_smooth_raw_dump(vdev, &param);
-		break;
-	}
-	case VI_SDK_GET_SMOOTH_RAWDUMP:
-	{
-		VIDEO_FRAME_INFO_S v_frm_info[2];
-
-		if (copy_from_user(v_frm_info, p->sdk_cfg.ptr, sizeof(VIDEO_FRAME_INFO_S) * 2) != 0) {
-			vi_pr(VI_ERR, "VIDEO_FRAME_INFO_S copy from user fail.\n");
-			break;
-		}
-
-		rc = vi_get_smooth_rawdump(p->sdk_cfg.pipe, v_frm_info, p->sdk_cfg.val);
-
-		if (copy_to_user(p->sdk_cfg.ptr, v_frm_info, sizeof(VIDEO_FRAME_INFO_S) * 2) != 0) {
-			vi_pr(VI_ERR, "VIDEO_FRAME_INFO_S copy to user fail.\n");
-			rc = -1;
-			break;
-		}
-		break;
-	}
-	case VI_SDK_PUT_SMOOTH_RAWDUMP:
-	{
-		VIDEO_FRAME_INFO_S v_frm_info[2];
-
-		if (copy_from_user(v_frm_info, p->sdk_cfg.ptr, sizeof(VIDEO_FRAME_INFO_S) * 2) != 0) {
-			vi_pr(VI_ERR, "VIDEO_FRAME_INFO_S copy from user fail.\n");
-			break;
-		}
-
-		rc = vi_put_smooth_rawdump(p->sdk_cfg.pipe, v_frm_info);
-		break;
-	}
-	case VI_SDK_SET_CHN_ROTATION:
-	{
-		struct vi_chn_rot_cfg cfg;
-		VI_CHN ViChn;
-		ROTATION_E enRotation;
-
-		if (copy_from_user(&cfg, p->sdk_cfg.ptr, sizeof(cfg)) != 0) {
-			vi_pr(VI_ERR, "vi_chn_rot_cfg copy from user fail.\n");
-			break;
-		}
-
-		ViChn = cfg.ViChn;
-		enRotation = cfg.enRotation;
-
-		rc = vi_set_chn_rotation(ViChn, enRotation);
-		break;
-	}
-	case VI_SDK_SET_CHN_LDC:
-	{
-		struct vi_chn_ldc_cfg cfg;
-		VI_CHN ViChn;
-		ROTATION_E enRotation;
-		CVI_U64 mesh_addr;
-
-		const VI_LDC_ATTR_S *pstLDCAttr = NULL;
-
-		if (copy_from_user(&cfg, p->sdk_cfg.ptr, sizeof(cfg)) != 0) {
-			vi_pr(VI_ERR, "vi_chn_ldc_cfg copy from user fail.\n");
-			break;
-		}
-
-		ViChn = cfg.ViChn;
-		enRotation = cfg.enRotation;
-		mesh_addr = cfg.meshHandle;
-		pstLDCAttr = &cfg.stLDCAttr;
-
-		rc = vi_set_chn_ldc_attr(ViChn, enRotation, pstLDCAttr, mesh_addr);
-		break;
-	}
-	case VI_SDK_ATTACH_VB_POOL:
-	{
-		struct vi_vb_pool_cfg cfg;
-		VI_PIPE ViPipe;
-		VI_CHN ViChn;
-		VB_POOL VbPool;
-
-		if (copy_from_user(&cfg, p->sdk_cfg.ptr, sizeof(cfg)) != 0) {
-			vi_pr(VI_ERR, "vi_attach_vb_pool copy from user fail.\n");
-			break;
-		}
-
-		ViPipe = cfg.ViPipe;
-		ViChn = cfg.ViChn;
-		VbPool = (VB_POOL)cfg.VbPool;
-
-		rc = vi_attach_vb_pool(ViPipe, ViChn, VbPool);
-		break;
-	}
-	case VI_SDK_DETACH_VB_POOL:
-	{
-		struct vi_vb_pool_cfg cfg;
-		VI_PIPE ViPipe;
-		VI_CHN ViChn;
-
-		if (copy_from_user(&cfg, p->sdk_cfg.ptr, sizeof(cfg)) != 0) {
-			vi_pr(VI_ERR, "vi_attach_vb_pool copy from user fail.\n");
-			break;
-		}
-
-		ViPipe = cfg.ViPipe;
-		ViChn = cfg.ViChn;
-
-		rc = vi_detach_vb_pool(ViPipe, ViChn);
-		break;
-	}
 	case VI_SDK_GET_PIPE_ATTR:
 	{
 		VI_PIPE_ATTR_S pipe_attr;
@@ -1604,47 +1331,6 @@ long vi_sdk_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 			rc = -1;
 			break;
 		}
-		break;
-	}
-	case VI_SDK_SET_PIPE_ATTR:
-	{
-		VI_PIPE_ATTR_S pipe_attr;
-
-		if (copy_from_user(&pipe_attr, p->sdk_cfg.ptr, sizeof(VI_PIPE_ATTR_S)) != 0) {
-			vi_pr(VI_ERR, "VI_PIPE_ATTR_S copy from user fail.\n");
-			break;
-		}
-
-		rc = vi_set_pipe_attr(p->sdk_cfg.pipe, &pipe_attr);
-
-		break;
-	}
-	case VI_SDK_GET_PIPE_DUMP_ATTR:
-	{
-		VI_DUMP_ATTR_S dump_attr;
-
-		memset(&dump_attr, 0, sizeof(dump_attr));
-
-		rc = vi_get_pipe_dump_attr(p->sdk_cfg.pipe, &dump_attr);
-
-		if (copy_to_user(p->sdk_cfg.ptr, &dump_attr, sizeof(VI_DUMP_ATTR_S)) != 0) {
-			vi_pr(VI_ERR, "VI_PIPE_ATTR_S copy to user fail.\n");
-			rc = -1;
-			break;
-		}
-
-		break;
-	}
-	case VI_SDK_SET_PIPE_DUMP_ATTR:
-	{
-		VI_DUMP_ATTR_S dump_attr;
-
-		if (copy_from_user(&dump_attr, p->sdk_cfg.ptr, sizeof(VI_DUMP_ATTR_S)) != 0) {
-			vi_pr(VI_ERR, "VI_PIPE_ATTR_S copy from user fail.\n");
-			break;
-		}
-
-		rc = vi_set_pipe_dump_attr(p->sdk_cfg.pipe, &dump_attr);
 		break;
 	}
 	default:
