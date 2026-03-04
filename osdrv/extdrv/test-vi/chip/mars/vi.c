@@ -2521,7 +2521,6 @@ void _vi_scene_ctrl(struct cvi_vi_dev *vdev, enum cvi_isp_raw *raw_max)
 		*raw_max = gViCtx->total_dev_num;
 		return;
 	}
-#ifndef FPGA_PORTING
 	if (gViCtx->total_dev_num >= 2) { // multi sensor scenario
 		*raw_max = gViCtx->total_dev_num;
 		ctx->is_multi_sensor = true;
@@ -2616,7 +2615,7 @@ void _vi_scene_ctrl(struct cvi_vi_dev *vdev, enum cvi_isp_raw *raw_max)
 			RGBMAP_BUF_IDX = 3;
 		}
 	}
-#endif
+
 	if (!sbm_en)
 		ctx->is_slice_buf_on = false;
 
@@ -2677,9 +2676,7 @@ static void _vi_suspend(struct cvi_vi_dev *vdev)
 		for (raw_num = ISP_PRERAW_A; raw_num < gViCtx->total_dev_num; raw_num++)
 			isp_streaming(&vdev->ctx, false, raw_num);
 		_vi_sw_init(vdev);
-#ifndef FPGA_PORTING
 		_vi_clk_ctrl(vdev, false);
-#endif
 	}
 }
 
@@ -3053,11 +3050,7 @@ int vi_stop_streaming(struct cvi_vi_dev *vdev)
 			atomic_read(&vdev->pre_be_state[ISP_BE_CH1]) == ISP_PRERAW_IDLE)
 			break;
 		vi_pr(VI_WARN, "wait count(%d)\n", count);
-#ifdef FPGA_PORTING
-		msleep(200);
-#else
 		msleep(20);
-#endif
 	}
 
 	if (count == 0) {
@@ -4644,7 +4637,6 @@ EXIT:
 	return rc;
 }
 
-#ifndef FPGA_PORTING
 static int _vi_clk_ctrl(struct cvi_vi_dev *vdev, u8 enable)
 {
 	u8 i = 0;
@@ -4697,7 +4689,6 @@ static int _vi_clk_ctrl(struct cvi_vi_dev *vdev, u8 enable)
 EXIT:
 	return rc;
 }
-#endif
 
 void _vi_sdk_release(struct cvi_vi_dev *vdev)
 {
@@ -4721,7 +4712,6 @@ void _vi_sdk_release(struct cvi_vi_dev *vdev)
 
 static void _vi_release_op(struct cvi_vi_dev *vdev)
 {
-#ifndef FPGA_PORTING
 	u8 i = 0;
 
 	_vi_clk_ctrl(vdev, false);
@@ -4729,7 +4719,6 @@ static void _vi_release_op(struct cvi_vi_dev *vdev)
 	for (i = 0; i < gViCtx->total_dev_num; i++) {
 		vi_mac_clk_ctrl(vdev, i, false);
 	}
-#endif
 }
 
 static int _vi_create_proc(struct cvi_vi_dev *vdev)
@@ -5649,9 +5638,7 @@ int vi_open(struct inode *inode, struct file *file)
 	file->private_data = vdev;
 
 	if (!atomic_read(&dev_open_cnt)) {
-#ifndef FPGA_PORTING
 		_vi_clk_ctrl(vdev, true);
-#endif
 		vi_init();
 
 		_vi_sw_init(vdev);

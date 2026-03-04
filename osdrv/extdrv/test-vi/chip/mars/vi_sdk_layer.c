@@ -297,9 +297,7 @@ CVI_S32 vi_enable_dev(VI_DEV ViDev)
 	}
 
 	gViCtx->total_dev_num++;
-#ifndef FPGA_PORTING
 	vi_mac_clk_ctrl(gvdev, (u8)ViDev, true);
-#endif
 	vi_pr(VI_DBG, "dev_%d enable=%d, total_dev_num=%d\n", ViDev, gViCtx->isDevEnable[ViDev], gViCtx->total_dev_num);
 
 	return CVI_SUCCESS;

@@ -1522,9 +1522,7 @@ void _isp_fe_be_raw_dump_cfg(
 	const u8 chn_num);
 void isp_post_tasklet(unsigned long data);
 static void _vi_sw_init(struct cvi_vi_dev *vdev);
-#ifndef FPGA_PORTING
 static int _vi_clk_ctrl(struct cvi_vi_dev *vdev, u8 enable);
-#endif
 static inline void vi_err_wake_up_th(struct cvi_vi_dev *vdev, enum cvi_isp_raw err_raw);
 static inline void _post_rgbmap_update(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num, const u32 frm_num);
 void _postraw_outbuf_enq(struct cvi_vi_dev *vdev, const enum cvi_isp_raw raw_num);

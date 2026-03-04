@@ -34,16 +34,6 @@ static long vi_core_ioctl(struct file *filp, u_int cmd, u_long arg)
 	return vi_ioctl(filp, cmd, arg);
 }
 
-#ifdef CONFIG_COMPAT
-static long compat_ptr_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
-{
-	if (!file->f_op->unlocked_ioctl)
-		return -ENOIOCTLCMD;
-
-	return file->f_op->unlocked_ioctl(file, cmd, (unsigned long)compat_ptr(arg));
-}
-#endif
-
 static int vi_core_open(struct inode *inode, struct file *filp)
 {
 	return vi_open(inode, filp);
@@ -68,9 +58,6 @@ const struct file_operations vi_fops = {
 	.owner = THIS_MODULE,
 	.open = vi_core_open,
 	.unlocked_ioctl = vi_core_ioctl,
-#ifdef CONFIG_COMPAT
-	.compat_ioctl = compat_ptr_ioctl,
-#endif
 	.release = vi_core_release,
 	.mmap = vi_core_mmap,
 	.poll = vi_core_poll,
@@ -144,7 +131,6 @@ static int vi_core_register_cdev(struct cvi_vi_dev *dev)
 	return err;
 }
 
-#ifndef FPGA_PORTING
 static int vi_core_clk_init(struct platform_device *pdev)
 {
 	struct cvi_vi_dev *dev;
@@ -182,7 +168,6 @@ static int vi_core_clk_init(struct platform_device *pdev)
 
 	return 0;
 }
-#endif
 
 static int vi_core_probe(struct platform_device *pdev)
 {
@@ -215,13 +200,11 @@ static int vi_core_probe(struct platform_device *pdev)
 	}
 	vi_pr(VI_INFO, "irq(%d) for %s get from platform driver.\n",
 			dev->irq_num, CVI_VI_IRQ_NAME);
-#ifndef FPGA_PORTING
 	ret = vi_core_clk_init(pdev);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to init clk, err %d\n", ret);
 		goto err_clk_init;
 	}
-#endif
 	ret = vi_core_register_cdev(dev);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to register dev, err %d\n", ret);
@@ -255,9 +238,7 @@ err_create_instance:
 
 err_dev_register:
 
-#ifndef FPGA_PORTING
 err_clk_init:
-#endif
 
 err_req_irq:
 	return ret;
