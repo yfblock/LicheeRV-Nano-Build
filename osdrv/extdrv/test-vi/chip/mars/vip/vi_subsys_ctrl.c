@@ -22,13 +22,7 @@ void ispblk_preraw_fe_config(struct isp_ctx *ctx, enum cvi_isp_raw raw_num)
 
 	raw = find_hw_raw_num(raw_num);
 
-	if (raw == ISP_PRERAW_A) {
-		preraw_fe = ctx->phys_regs[ISP_BLK_ID_PRE_RAW_FE0];
-	} else if (raw == ISP_PRERAW_B) {
-		preraw_fe = ctx->phys_regs[ISP_BLK_ID_PRE_RAW_FE1];
-	} else {
-		preraw_fe = ctx->phys_regs[ISP_BLK_ID_PRE_RAW_FE2];
-	}
+	preraw_fe = ctx->phys_regs[ISP_BLK_ID_PRE_RAW_FE0];
 
 	frm_size.raw = rgbmap_le.raw = rgbmap_se.raw = 0;
 
@@ -59,13 +53,8 @@ void ispblk_preraw_vi_sel_config(struct isp_ctx *ctx)
 	vi_sel_1.bits.FRAME_HEIGHTM1 = ctx->img_height - 1;
 	ISP_WR_REG(vi_sel, REG_PRE_RAW_VI_SEL_T, REG_1, vi_sel_1.raw);
 
-	if (_is_be_post_online(ctx) && ctx->is_dpcm_on) { // dram->be
-		ISP_WR_BITS(vi_sel, REG_PRE_RAW_VI_SEL_T, REG_0, DMA_LD_DPCM_MODE, 7);
-		ISP_WR_BITS(vi_sel, REG_PRE_RAW_VI_SEL_T, REG_0, DPCM_RX_XSTR, 8191);
-	} else {
-		ISP_WR_BITS(vi_sel, REG_PRE_RAW_VI_SEL_T, REG_0, DMA_LD_DPCM_MODE, 0);
-		ISP_WR_BITS(vi_sel, REG_PRE_RAW_VI_SEL_T, REG_0, DPCM_RX_XSTR, 0);
-	}
+	ISP_WR_BITS(vi_sel, REG_PRE_RAW_VI_SEL_T, REG_0, DMA_LD_DPCM_MODE, 7);
+	ISP_WR_BITS(vi_sel, REG_PRE_RAW_VI_SEL_T, REG_0, DPCM_RX_XSTR, 8191);
 }
 
 void ispblk_pre_wdma_ctrl_config(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num)
@@ -79,17 +68,10 @@ void ispblk_pre_wdma_ctrl_config(struct isp_ctx *ctx, const enum cvi_isp_raw raw
 	ISP_WR_REG(pre_wdma, REG_PRE_WDMA_CTRL_T, PRE_WDMA_CTRL, wdma_ctrl.raw);
 
 	// NOTE: for be->dram, 'PRE_RAW_BE_RDMI_DPCM' naming is misleading
-	if (!ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw) {
-		if (_is_fe_be_online(ctx) && ctx->is_dpcm_on) { // be->dram
-			ISP_WR_BITS(pre_wdma, REG_PRE_WDMA_CTRL_T, PRE_RAW_BE_RDMI_DPCM, DPCM_MODE, 7);
-			// 1 if dpcm_mode 7; 0 if dpcm_mode 5
-			ISP_WR_BITS(pre_wdma, REG_PRE_WDMA_CTRL_T, PRE_WDMA_CTRL, DMA_WR_MSB, 1);
-			ISP_WR_BITS(pre_wdma, REG_PRE_WDMA_CTRL_T, PRE_RAW_BE_RDMI_DPCM, DPCM_XSTR, 8191);
-		} else {
-			ISP_WR_BITS(pre_wdma, REG_PRE_WDMA_CTRL_T, PRE_RAW_BE_RDMI_DPCM, DPCM_MODE, 0);
-			ISP_WR_BITS(pre_wdma, REG_PRE_WDMA_CTRL_T, PRE_RAW_BE_RDMI_DPCM, DPCM_XSTR, 0);
-		}
-	}
+	ISP_WR_BITS(pre_wdma, REG_PRE_WDMA_CTRL_T, PRE_RAW_BE_RDMI_DPCM, DPCM_MODE, 7);
+	// 1 if dpcm_mode 7; 0 if dpcm_mode 5
+	ISP_WR_BITS(pre_wdma, REG_PRE_WDMA_CTRL_T, PRE_WDMA_CTRL, DMA_WR_MSB, 1);
+	ISP_WR_BITS(pre_wdma, REG_PRE_WDMA_CTRL_T, PRE_RAW_BE_RDMI_DPCM, DPCM_XSTR, 8191);
 }
 
 void ispblk_preraw_be_config(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num)
@@ -129,16 +111,8 @@ void ispblk_raw_rdma_ctrl_config(struct isp_ctx *ctx, const enum cvi_isp_raw raw
 	rdma_size.bits.RDMI_HEIGHTM1 = ctx->img_height - 1;
 	ISP_WR_REG(raw_rdma, REG_RAW_RDMA_CTRL_T, RDMA_SIZE, rdma_size.raw);
 
-	if (!ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw) {
-		if (_is_fe_be_online(ctx) && ctx->is_dpcm_on &&
-		    !ctx->isp_pipe_cfg[raw_num].is_yuv_bypass_path) { //dram->post
-			ISP_WR_BITS(raw_rdma, REG_RAW_RDMA_CTRL_T, DPCM_MODE, DPCM_MODE, 7);
-			ISP_WR_BITS(raw_rdma, REG_RAW_RDMA_CTRL_T, DPCM_MODE, DPCM_XSTR, 8191);
-		} else {
-			ISP_WR_BITS(raw_rdma, REG_RAW_RDMA_CTRL_T, DPCM_MODE, DPCM_MODE, 0);
-			ISP_WR_BITS(raw_rdma, REG_RAW_RDMA_CTRL_T, DPCM_MODE, DPCM_XSTR, 0);
-		}
-	}
+	ISP_WR_BITS(raw_rdma, REG_RAW_RDMA_CTRL_T, DPCM_MODE, DPCM_MODE, 7);
+	ISP_WR_BITS(raw_rdma, REG_RAW_RDMA_CTRL_T, DPCM_MODE, DPCM_XSTR, 8191);
 }
 
 void ispblk_rawtop_config(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num)
@@ -148,7 +122,6 @@ void ispblk_rawtop_config(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num)
 	union REG_RAW_TOP_RAW_2 raw_2;
 	union REG_RAW_TOP_RDMI_ENABLE rdmi_enable;
 	union REG_RAW_TOP_LE_LMAP_GRID_NUMBER   le_lmap_size;
-	union REG_RAW_TOP_SE_LMAP_GRID_NUMBER   se_lmap_size;
 	union REG_RAW_TOP_PATGEN1 patgen1;
 
 	raw_2.raw = 0;
@@ -160,50 +133,22 @@ void ispblk_rawtop_config(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num)
 
 	rdmi_enable.raw = ISP_RD_REG(rawtop, REG_RAW_TOP_T, RDMI_ENABLE);
 	rdmi_enable.bits.CH_NUM = ctx->isp_pipe_cfg[raw_num].is_hdr_on;
-	if (!(ctx->isp_pipe_cfg[raw_num].is_hdr_on)
-	    && (_is_fe_be_online(ctx) && ctx->is_slice_buf_on)) {
-		//In order for linearMode use guideWeight
-		rdmi_enable.bits.CH_NUM		= 1;
-		patgen1.raw = ISP_RD_REG(rawtop, REG_RAW_TOP_T, PATGEN1);
-		patgen1.bits.PG_ENABLE		= 1;
-		ISP_WR_REG(rawtop, REG_RAW_TOP_T, PATGEN1, patgen1.raw);
-	} else {
-		rdmi_enable.bits.CH_NUM		= ctx->isp_pipe_cfg[raw_num].is_hdr_on;
-		patgen1.raw = ISP_RD_REG(rawtop, REG_RAW_TOP_T, PATGEN1);
-		patgen1.bits.PG_ENABLE		= 0;
-		ISP_WR_REG(rawtop, REG_RAW_TOP_T, PATGEN1, patgen1.raw);
-	}
+	rdmi_enable.bits.CH_NUM		= ctx->isp_pipe_cfg[raw_num].is_hdr_on;
+	patgen1.raw = ISP_RD_REG(rawtop, REG_RAW_TOP_T, PATGEN1);
+	patgen1.bits.PG_ENABLE		= 0;
+	ISP_WR_REG(rawtop, REG_RAW_TOP_T, PATGEN1, patgen1.raw);
 	ISP_WR_REG(rawtop, REG_RAW_TOP_T, RDMI_ENABLE, rdmi_enable.raw);
 
-	if (ctx->is_yuv_sensor) {
-		ISP_WO_BITS(rawtop, REG_RAW_TOP_T, CTRL, LS_CROP_DST_SEL, 1);
-		ISP_WO_BITS(rawtop, REG_RAW_TOP_T, RAW_4, YUV_IN_MODE, 1);
-	} else {
-		ISP_WO_BITS(rawtop, REG_RAW_TOP_T, CTRL, LS_CROP_DST_SEL, 0);
-		ISP_WO_BITS(rawtop, REG_RAW_TOP_T, RAW_4, YUV_IN_MODE, 0);
-	}
+	ISP_WO_BITS(rawtop, REG_RAW_TOP_T, CTRL, LS_CROP_DST_SEL, 0);
+	ISP_WO_BITS(rawtop, REG_RAW_TOP_T, RAW_4, YUV_IN_MODE, 0);
 
-	if (!ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw) {
-		if (_is_fe_be_online(ctx) && ctx->is_dpcm_on) { //dram->post
-			ISP_WR_BITS(rawtop, REG_RAW_TOP_T, DPCM_MODE, DPCM_MODE, 7);
-			ISP_WR_BITS(rawtop, REG_RAW_TOP_T, DPCM_MODE, DPCM_XSTR, 8191);
-		} else {
-			ISP_WR_BITS(rawtop, REG_RAW_TOP_T, DPCM_MODE, DPCM_MODE, 0);
-			ISP_WR_BITS(rawtop, REG_RAW_TOP_T, DPCM_MODE, DPCM_XSTR, 0);
-		}
-	}
+	ISP_WR_BITS(rawtop, REG_RAW_TOP_T, DPCM_MODE, DPCM_MODE, 7);
+	ISP_WR_BITS(rawtop, REG_RAW_TOP_T, DPCM_MODE, DPCM_XSTR, 8191);
 
 	le_lmap_size.raw = ISP_RD_REG(rawtop, REG_RAW_TOP_T, LE_LMAP_GRID_NUMBER);
 	le_lmap_size.bits.LE_LMP_H_GRID_SIZE = g_lmp_cfg[raw_num].post_w_bit;
 	le_lmap_size.bits.LE_LMP_V_GRID_SIZE = g_lmp_cfg[raw_num].post_h_bit;
 	ISP_WR_REG(rawtop, REG_RAW_TOP_T, LE_LMAP_GRID_NUMBER, le_lmap_size.raw);
-
-	if (ctx->isp_pipe_cfg[raw_num].is_hdr_on) {
-		se_lmap_size.raw = ISP_RD_REG(rawtop, REG_RAW_TOP_T, SE_LMAP_GRID_NUMBER);
-		se_lmap_size.bits.SE_LMP_H_GRID_SIZE = g_lmp_cfg[raw_num].post_w_bit;
-		se_lmap_size.bits.SE_LMP_V_GRID_SIZE = g_lmp_cfg[raw_num].post_h_bit;
-		ISP_WR_REG(rawtop, REG_RAW_TOP_T, SE_LMAP_GRID_NUMBER, se_lmap_size.raw);
-	}
 }
 
 void ispblk_rgbtop_config(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num)
@@ -236,13 +181,7 @@ void ispblk_yuvtop_config(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num)
 	imgw_m1.bits.YUV_TOP_IMGW_M1 = ctx->img_width - 1;
 	imgw_m1.bits.YUV_TOP_IMGH_M1 = ctx->img_height - 1;
 	ISP_WR_REG(yuvtop, REG_YUV_TOP_T, IMGW_M1, imgw_m1.raw);
-
-	if (_is_all_online(ctx) && !ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_scaler) {
-		//bypass_v = 1 -> 422P online to scaler
-		ISP_WR_BITS(yuvtop, REG_YUV_TOP_T, YUV_CTRL, BYPASS_V, 1);
-	} else {
-		ISP_WR_BITS(yuvtop, REG_YUV_TOP_T, YUV_CTRL, BYPASS_V, !ctx->isp_pipe_cfg[raw_num].is_offline_scaler);
-	}
+	ISP_WR_BITS(yuvtop, REG_YUV_TOP_T, YUV_CTRL, BYPASS_V, !ctx->isp_pipe_cfg[raw_num].is_offline_scaler);
 }
 
 void ispblk_isptop_config(struct isp_ctx *ctx)
@@ -262,100 +201,9 @@ void ispblk_isptop_config(struct isp_ctx *ctx)
 	ev0_en.raw = ev1_en.raw = ev2_en.raw = 0;
 	trig_sel0.raw = trig_sel1.raw = scene_ctrl.raw = 0;
 
-	if (ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw)
-		pre_fe0_trig_by_hw = 0;
-	else {
-		if (!ctx->isp_pipe_cfg[ISP_PRERAW_A].is_yuv_bypass_path) { //RGB sensor
-			if (ctx->isp_pipe_cfg[ISP_PRERAW_A].is_hdr_on && !ctx->is_synthetic_hdr_on)
-				pre_fe0_trig_by_hw = 3;
-			else
-				pre_fe0_trig_by_hw = 1;
-		} else { //YUV sensor
-			switch (ctx->total_chn_num) {
-			case 1:
-				pre_fe0_trig_by_hw = 1;
-				break;
-			case 2:
-				pre_fe0_trig_by_hw = 3;
-				break;
-			case 3:
-				pre_fe0_trig_by_hw = 7;
-				break;
-			case 4:
-				pre_fe0_trig_by_hw = 15;
-				break;
-			default:
-				break;
-			}
-		}
-	}
-
-	if (ctx->is_multi_sensor) {
-		if (ctx->isp_pipe_cfg[ISP_PRERAW_B].is_offline_preraw)
-			pre_fe1_trig_by_hw = 0;
-		else {
-			if (!ctx->isp_pipe_cfg[ISP_PRERAW_B].is_yuv_bypass_path) { //RGB sensor
-				if (ctx->isp_pipe_cfg[ISP_PRERAW_B].is_hdr_on)
-					pre_fe1_trig_by_hw = 3;
-				else
-					pre_fe1_trig_by_hw = 1;
-			} else { //YUV sensor
-				switch (ctx->total_chn_num - ctx->rawb_chnstr_num) {
-				case 1:
-					pre_fe1_trig_by_hw = 1;
-					break;
-				case 2:
-					pre_fe1_trig_by_hw = 3;
-					break;
-				default:
-					break;
-				}
-			}
-		}
-		if (ctx->isp_pipe_cfg[ISP_PRERAW_C].is_offline_preraw)
-			pre_fe2_trig_by_hw = 0;
-		else {
-			if (!ctx->isp_pipe_cfg[ISP_PRERAW_C].is_yuv_bypass_path) { //RGB sensor
-				if (ctx->isp_pipe_cfg[ISP_PRERAW_C].is_hdr_on)
-					pre_fe2_trig_by_hw = 3;
-				else
-					pre_fe2_trig_by_hw = 1;
-			} else { //YUV sensor
-				switch (ctx->total_chn_num - ctx->rawb_chnstr_num) {
-				case 1:
-					pre_fe2_trig_by_hw = 1;
-					break;
-				case 2:
-					pre_fe2_trig_by_hw = 3;
-					break;
-				default:
-					break;
-				}
-			}
-		}
-	}
-
-	if (ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw)
-		pre_be_trig_by_hw = 0;
-	else if (ctx->is_offline_be)
-		pre_be_trig_by_hw = 0;
-	else { //be online, on the fly mode or fe_A->be
-		if (ctx->isp_pipe_cfg[ISP_PRERAW_A].is_yuv_bypass_path)
-			pre_be_trig_by_hw = 0;
-		else { //Single RGB sensor
-			if (ctx->is_hdr_on)
-				pre_be_trig_by_hw = 3;
-			else
-				pre_be_trig_by_hw = 1;
-		}
-	}
-
-	// fly mode or single sensor and slice buffer mode on. post trigger by vsync
-	if ((ctx->isp_pipe_cfg[ISP_PRERAW_A].is_offline_preraw == 0) &&
-		(_is_all_online(ctx) || (_is_fe_be_online(ctx) && ctx->is_slice_buf_on)))
-		post_trig_by_hw = 1;
-	else //trigger by SW
-		post_trig_by_hw = 0;
+	pre_fe0_trig_by_hw = 1;
+	pre_be_trig_by_hw = 1;
+	post_trig_by_hw = 0;
 
 	//pre_fe0
 	ev0_en.bits.FRAME_DONE_ENABLE_FE0	= 0xF;
@@ -423,11 +271,7 @@ void ispblk_isptop_config(struct isp_ctx *ctx)
 	scene_ctrl.bits.RGBMP_ONLINE_S_ENABLE	= 0;
 	scene_ctrl.bits.RAW2YUV_422_ENABLE	= 0;
 	scene_ctrl.bits.HDR_ENABLE		= ctx->is_hdr_on;
-	if (!(ctx->is_hdr_on)
-	    && (_is_fe_be_online(ctx) && ctx->is_slice_buf_on)) {
-		//In order for linearMode use guideWeight
-		scene_ctrl.bits.HDR_ENABLE	= 1;
-	}
+
 	// to verify IP, turn off HW LUT of rgbgamma, ynr, and cnr.
 	scene_ctrl.bits.HW_AUTO_ENABLE		= 0;
 	// set the position of the beginning of YUV suggested by HW
@@ -496,13 +340,7 @@ struct _fe_dbg_i ispblk_fe_dbg_info(struct isp_ctx *ctx, enum cvi_isp_raw raw_nu
 	uintptr_t preraw_fe;
 	struct _fe_dbg_i data;
 
-	if (raw_num == ISP_PRERAW_A) {
-		preraw_fe = ctx->phys_regs[ISP_BLK_ID_PRE_RAW_FE0];
-	} else if (raw_num == ISP_PRERAW_B) {
-		preraw_fe = ctx->phys_regs[ISP_BLK_ID_PRE_RAW_FE1];
-	} else {
-		preraw_fe = ctx->phys_regs[ISP_BLK_ID_PRE_RAW_FE2];
-	}
+	preraw_fe = ctx->phys_regs[ISP_BLK_ID_PRE_RAW_FE0];
 
 	data.fe_idle_sts = ISP_RD_REG(preraw_fe, REG_PRE_RAW_FE_T, PRE_RAW_DEBUG_STATE);
 	data.fe_done_sts = ISP_RD_REG(preraw_fe, REG_PRE_RAW_FE_T, FE_IDLE_INFO);
