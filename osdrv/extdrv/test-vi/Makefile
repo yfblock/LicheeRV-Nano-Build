@@ -42,13 +42,7 @@ $(BUILD_DIR)/test_vi.ko: $(BUILD_DIR)/Makefile \
 	$(BUILD_DIR)/chip/mars/vip/vi_tun_ip_ctrl.c \
 	$(BUILD_DIR)/chip/mars/vip/vi_ip_test_case.c \
 	$(BUILD_DIR)/chip/mars/vip/vi_perf_chk.c \
-	$(BUILD_DIR)/chip/mars/vip/vi_perf_chk.h \
-	$(BUILD_DIR)/chip/mars/proc/vi_proc.c \
-	$(BUILD_DIR)/chip/mars/proc/vi_proc.h \
-	$(BUILD_DIR)/chip/mars/proc/vi_dbg_proc.c \
-	$(BUILD_DIR)/chip/mars/proc/vi_dbg_proc.h \
-	$(BUILD_DIR)/chip/mars/proc/vi_isp_proc.c \
-	$(BUILD_DIR)/chip/mars/proc/vi_isp_proc.h
+	$(BUILD_DIR)/chip/mars/vip/vi_perf_chk.h
 	$(MAKE) ARCH=$(ARCH) -C $(KERNEL_DIR) M=$(BUILD_DIR) modules
 
 # 将 Kbuild 模板复制到 build/ 供内核使用

@@ -1,9 +1,6 @@
 #include <vi.h>
 #include <linux/cvi_base_ctx.h>
 #include <linux/of_gpio.h>
-#include <proc/vi_dbg_proc.h>
-#include <proc/vi_proc.h>
-#include <proc/vi_isp_proc.h>
 #include <vi_ext.h>
 #include <base_cb.h>
 #include <base_ctx.h>
@@ -4750,32 +4747,14 @@ static int _vi_create_proc(struct cvi_vi_dev *vdev)
 		return -ENOMEM;
 	}
 
-	if (vi_proc_init(vdev, vdev->shared_mem) < 0) {
-		pr_err("vi proc init failed\n");
-		return -EAGAIN;
-	}
-
-	if (vi_dbg_proc_init(vdev) < 0) {
-		pr_err("vi_dbg proc init failed\n");
-		return -EAGAIN;
-	}
-
-	if (isp_proc_init(vdev) < 0) {
-		pr_err("isp proc init failed\n");
-		return -EAGAIN;
-	}
 
 	return ret;
 }
 
 static void _vi_destroy_proc(struct cvi_vi_dev *vdev)
 {
-	vi_proc_remove();
-	vi_dbg_proc_remove();
 	kfree(vdev->shared_mem);
 	vdev->shared_mem = NULL;
-
-	isp_proc_remove();
 }
 
 static const char *_vi_s_ctrl_id_to_string(u32 id)
@@ -5136,20 +5115,6 @@ static long _vi_s_ctrl(struct cvi_vi_dev *vdev, struct vi_ext_control *p)
 
 		if (copy_to_user(p->ptr, &m_gd_sz, sizeof(struct cvi_isp_mmap_grid_size)) != 0)
 			break;
-
-		rc = 0;
-		break;
-	}
-
-	case VI_IOCTL_SET_PROC_CONTENT:
-	{
-		struct isp_proc_cfg proc_cfg;
-		int rval = 0;
-
-		rval = copy_from_user(&proc_cfg, p->ptr, sizeof(struct isp_proc_cfg));
-		if ((rval != 0) || (proc_cfg.buffer_size == 0))
-			break;
-		isp_proc_setProcContent(proc_cfg.buffer, proc_cfg.buffer_size);
 
 		rc = 0;
 		break;

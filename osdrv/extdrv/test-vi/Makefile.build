@@ -16,10 +16,7 @@ test_vi-objs := common/vi_core.o \
 		chip/mars/vip/vi_yuv_ip_ctrl.o \
 		chip/mars/vip/vi_tun_ip_ctrl.o \
 		chip/mars/vip/vi_ip_test_case.o \
-		chip/mars/vip/vi_perf_chk.o \
-		chip/mars/proc/vi_proc.o \
-		chip/mars/proc/vi_dbg_proc.o \
-		chip/mars/proc/vi_isp_proc.o
+		chip/mars/vip/vi_perf_chk.o
 
 # 头文件搜索路径（参考 interdrv/v2/vi/Makefile）
 ccflags-y += -I$(src)/chip/mars -I$(src)/common
