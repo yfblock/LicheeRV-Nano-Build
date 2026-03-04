@@ -248,11 +248,6 @@ void ispblk_rgbcac_config(struct isp_ctx *ctx, bool en, uint8_t test_case)
 	uintptr_t rgbcac = ctx->phys_regs[ISP_BLK_ID_RGBCAC];
 
 	ISP_WR_BITS(rgbcac, REG_ISP_RGBCAC_T, RGBCAC_CTRL, RGBCAC_ENABLE, en);
-
-	if (test_case == 1) {
-		ISP_WR_BITS(rgbcac, REG_ISP_RGBCAC_T, RGBCAC_PURPLE_TH, RGBCAC_PURPLE_TH_LE, 0xFF);
-		ISP_WR_BITS(rgbcac, REG_ISP_RGBCAC_T, RGBCAC_PURPLE_TH, RGBCAC_CORRECT_STRENGTH_LE, 0xFF);
-	}
 }
 
 void ispblk_lcac_config(struct isp_ctx *ctx, bool en, uint8_t test_case)
@@ -260,24 +255,5 @@ void ispblk_lcac_config(struct isp_ctx *ctx, bool en, uint8_t test_case)
 	uintptr_t lcac = ctx->phys_regs[ISP_BLK_ID_LCAC];
 
 	ISP_WR_BITS(lcac, REG_ISP_LCAC_T, REG00, LCAC_ENABLE, en);
-
-	if (test_case == 1) {
-		union REG_ISP_LCAC_REG08 reg8;
-		union REG_ISP_LCAC_REG0C regC;
-
-		reg8.raw = ISP_RD_REG(lcac, REG_ISP_LCAC_T, REG08);
-		reg8.bits.LCAC_LTI_STR_R2_LE	= 64;
-		reg8.bits.LCAC_LTI_STR_B2_LE	= 64;
-		reg8.bits.LCAC_LTI_WGT_R_LE	= 0;
-		reg8.bits.LCAC_LTI_WGT_B_LE	= 0;
-		ISP_WR_REG(lcac, REG_ISP_LCAC_T, REG08, reg8.raw);
-
-		regC.raw = ISP_RD_REG(lcac, REG_ISP_LCAC_T, REG0C);
-		regC.bits.LCAC_LTI_STR_R2_SE	= 64;
-		regC.bits.LCAC_LTI_STR_B2_SE	= 64;
-		regC.bits.LCAC_LTI_WGT_R_SE	= 0;
-		regC.bits.LCAC_LTI_WGT_B_SE	= 0;
-		ISP_WR_REG(lcac, REG_ISP_LCAC_T, REG0C, regC.raw);
-	}
 }
 

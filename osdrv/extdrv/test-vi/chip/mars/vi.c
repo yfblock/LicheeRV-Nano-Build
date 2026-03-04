@@ -397,161 +397,6 @@ void _vi_yuv_dma_setup(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num)
 	}
 }
 
-static void _isp_preraw_fe_dma_dump(struct isp_ctx *ictx, enum cvi_isp_raw  raw_num)
-{
-	u8 i = 0;
-	char str[64] = "PRERAW_FE";
-
-	vi_pr(VI_INFO, "***************%s_%d************************\n", str, raw_num);
-	for (i = 0; i < OFFLINE_RAW_BUF_NUM; i++)
-		vi_pr(VI_INFO, "bayer_le(0x%llx)\n", isp_bufpool[raw_num].bayer_le[i]);
-
-	for (i = 0; i < RGBMAP_BUF_IDX; i++)
-		vi_pr(VI_INFO, "rgbmap_le(0x%llx)\n", isp_bufpool[raw_num].rgbmap_le[i]);
-
-	if (ictx->isp_pipe_cfg[raw_num].is_hdr_on) {
-		for (i = 0; i < OFFLINE_RAW_BUF_NUM; i++)
-			vi_pr(VI_INFO, "bayer_se(0x%llx)\n", isp_bufpool[raw_num].bayer_se[i]);
-
-		for (i = 0; i < RGBMAP_BUF_IDX; i++)
-			vi_pr(VI_INFO, "rgbmap_se(0x%llx)\n", isp_bufpool[raw_num].rgbmap_se[i]);
-	}
-
-	if (ictx->isp_pipe_cfg[raw_num].is_yuv_bypass_path &&
-		!ictx->isp_pipe_cfg[raw_num].is_offline_scaler) {
-		for (i = 0; i < ISP_CHN_MAX; i++) {
-			vi_pr(VI_INFO, "yuyv_yuv(0x%llx), yuyv_yuv(0x%llx)\n",
-				isp_bufpool[raw_num].yuv_yuyv[i][0], isp_bufpool[raw_num].yuv_yuyv[i][1]);
-		}
-	}
-	vi_pr(VI_INFO, "*************************************************\n");
-}
-
-static void _isp_preraw_be_dma_dump(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
-{
-	u8 i = 0;
-	char str[64] = "PRERAW_BE";
-	enum cvi_isp_raw raw = ISP_PRERAW_A;
-
-	vi_pr(VI_INFO, "***************%s************************\n", str);
-	vi_pr(VI_INFO, "be_rdma_le(0x%llx)\n", isp_bufpool[raw].bayer_le[0]);
-	for (i = 0; i < OFFLINE_PRE_BE_BUF_NUM; i++)
-		vi_pr(VI_INFO, "be_wdma_le(0x%llx)\n", isp_bufpool[raw].prebe_le[i]);
-
-	if (ictx->is_hdr_on) {
-		vi_pr(VI_INFO, "be_rdma_se(0x%llx)\n", isp_bufpool[raw].bayer_se[0]);
-		for (i = 0; i < OFFLINE_PRE_BE_BUF_NUM; i++)
-			vi_pr(VI_INFO, "be_wdma_se(0x%llx)\n", isp_bufpool[raw].prebe_se[i]);
-	}
-
-	for (; raw < ISP_PRERAW_VIRT_MAX; raw++) {
-		if (!ictx->isp_pipe_enable[raw])
-			continue;
-
-		vi_pr(VI_INFO, "***********************raw_%d*****************", raw);
-		vi_pr(VI_INFO, "af(0x%llx, 0x%llx)\n",
-				isp_bufpool[raw].sts_mem[0].af.phy_addr,
-				isp_bufpool[raw].sts_mem[1].af.phy_addr);
-	}
-	vi_pr(VI_INFO, "*************************************************\n");
-}
-
-static void _isp_rawtop_dma_dump(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
-{
-	char str[64] = "RAW_TOP";
-	enum cvi_isp_raw raw = ISP_PRERAW_A;
-
-	vi_pr(VI_INFO, "***************%s************************\n", str);
-	vi_pr(VI_INFO, "rawtop_rdma_le(0x%llx)\n", isp_bufpool[raw].prebe_le[0]);
-
-	if (ictx->is_hdr_on)
-		vi_pr(VI_INFO, "rawtop_rdma_se(0x%llx)\n", isp_bufpool[raw].prebe_se[0]);
-
-	for (; raw < ISP_PRERAW_VIRT_MAX; raw++) {
-		if (!ictx->isp_pipe_enable[raw])
-			continue;
-
-		vi_pr(VI_INFO, "***********************raw_%d*****************", raw);
-		vi_pr(VI_INFO, "lsc(0x%llx)\n", isp_bufpool[raw].lsc);
-		vi_pr(VI_INFO, "ae_le(0x%llx, 0x%llx)\n",
-				isp_bufpool[raw].sts_mem[0].ae_le.phy_addr,
-				isp_bufpool[raw].sts_mem[1].ae_le.phy_addr);
-		vi_pr(VI_INFO, "gms(0x%llx, 0x%llx)\n",
-				isp_bufpool[raw].sts_mem[0].gms.phy_addr,
-				isp_bufpool[raw].sts_mem[1].gms.phy_addr);
-		vi_pr(VI_INFO, "awb(0x%llx, 0x%llx)\n",
-				isp_bufpool[raw].sts_mem[0].awb.phy_addr,
-				isp_bufpool[raw].sts_mem[1].awb.phy_addr);
-		vi_pr(VI_INFO, "lmap_le(0x%llx)\n", isp_bufpool[raw].lmap_le);
-
-		if (ictx->isp_pipe_cfg[raw].is_hdr_on) {
-			vi_pr(VI_INFO, "ae_se(0x%llx, 0x%llx)\n",
-					isp_bufpool[raw].sts_mem[0].ae_se.phy_addr,
-					isp_bufpool[raw].sts_mem[1].ae_se.phy_addr);
-			vi_pr(VI_INFO, "lmap_se(0x%llx)\n", isp_bufpool[raw].lmap_se);
-		}
-	}
-
-	vi_pr(VI_INFO, "*************************************************\n");
-}
-
-static void _isp_rgbtop_dma_dump(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
-{
-	char str[64] = "RGB_TOP";
-	enum cvi_isp_raw raw = ISP_PRERAW_A;
-
-	vi_pr(VI_INFO, "***************%s************************\n", str);
-	for (; raw < ISP_PRERAW_VIRT_MAX; raw++) {
-		if (!ictx->isp_pipe_enable[raw])
-			continue;
-
-		vi_pr(VI_INFO, "***********************raw_%d*****************", raw);
-		vi_pr(VI_INFO, "hist_edge_v(0x%llx, 0x%llx)\n",
-				isp_bufpool[raw].sts_mem[0].hist_edge_v.phy_addr,
-				isp_bufpool[raw].sts_mem[1].hist_edge_v.phy_addr);
-		vi_pr(VI_INFO, "manr(0x%llx), manr_rtile(0x%llx)\n",
-				isp_bufpool[raw].manr,
-				isp_bufpool[raw].manr_rtile);
-		vi_pr(VI_INFO, "tdnr(0x%llx, 0x%llx), tdnr_rtile(0x%llx, 0x%llx)\n",
-				isp_bufpool[raw].tdnr[0],
-				isp_bufpool[raw].tdnr[1],
-				isp_bufpool[raw].tdnr_rtile[0],
-				isp_bufpool[raw].tdnr_rtile[1]);
-	}
-
-	vi_pr(VI_INFO, "*************************************************\n");
-}
-
-static void _isp_yuvtop_dma_dump(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
-{
-	char str[64] = "YUV_TOP";
-	enum cvi_isp_raw raw = ISP_PRERAW_A;
-
-	uint64_t dci_bufaddr = 0;
-	uint64_t ldci_bufaddr = 0;
-
-	vi_pr(VI_INFO, "***************%s************************\n", str);
-	for (; raw < ISP_PRERAW_VIRT_MAX; raw++) {
-		if (!ictx->isp_pipe_enable[raw])
-			continue;
-
-		vi_pr(VI_INFO, "***********************raw_%d*****************", raw);
-		vi_pr(VI_INFO, "dci(0x%llx, 0x%llx)\n",
-				isp_bufpool[raw].sts_mem[0].dci.phy_addr,
-				isp_bufpool[raw].sts_mem[1].dci.phy_addr);
-		vi_pr(VI_INFO, "ldci(0x%llx)\n", isp_bufpool[raw].ldci);
-
-		// show wasted buf size for 256B-aligned ldci bufaddr
-		dci_bufaddr = isp_bufpool[raw].sts_mem[1].dci.phy_addr;
-		ldci_bufaddr = isp_bufpool[raw].ldci;
-		vi_pr(VI_INFO, "ldci wasted_bufsize_for_alignment(%d)\n",
-			(uint32_t)(ldci_bufaddr - (dci_bufaddr + 0x200)));
-	}
-	vi_pr(VI_INFO, "*************************************************\n");
-	vi_pr(VI_INFO, "VI total reserved memory(0x%x)\n", isp_mempool.byteused);
-	vi_pr(VI_INFO, "*************************************************\n");
-}
-
 void _isp_preraw_fe_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_num)
 {
 	uint64_t bufaddr = 0;
@@ -662,7 +507,7 @@ void _isp_preraw_fe_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_num)
 	}
 
 EXIT:
-	_isp_preraw_fe_dma_dump(ictx, raw_num);
+	return;
 }
 
 void _isp_preraw_be_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
@@ -761,7 +606,7 @@ void _isp_preraw_be_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
 		isp_bufpool[raw_num].sts_mem[1].af.size = bufsize;
 	}
 EXIT:
-	_isp_preraw_be_dma_dump(ictx, raw_max);
+	return;
 }
 
 void _isp_rawtop_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
@@ -771,27 +616,8 @@ void _isp_rawtop_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
 
 	enum cvi_isp_raw raw_num = ISP_PRERAW_A;
 
-	u8 cfg_dma = false;
-
-	//RGB path
-	if (!ictx->isp_pipe_cfg[ISP_PRERAW_A].is_yuv_bypass_path) {
-		cfg_dma = true;
-	} else if (ictx->is_multi_sensor && !ictx->isp_pipe_cfg[ISP_PRERAW_B].is_yuv_bypass_path) {
-		cfg_dma = true;
-	}
-
-	if (cfg_dma == false) //YUV sensor only
-		goto EXIT;
-
-	if (_is_fe_be_online(ictx)) { //fe->be->dram->post
-		//apply pre_be le buffer from DMA_CTL22
-		ispblk_dma_config(ictx, ISP_BLK_ID_DMA_CTL28, raw_num, isp_bufpool[ISP_PRERAW_A].prebe_le[0]);
-
-		if (ictx->is_hdr_on) {
-			//apply pre_be se buffer from DMA_CTL23
-			ispblk_dma_config(ictx, ISP_BLK_ID_DMA_CTL29, raw_num, isp_bufpool[ISP_PRERAW_A].prebe_se[0]);
-		}
-	}
+	//apply pre_be le buffer from DMA_CTL22
+	ispblk_dma_config(ictx, ISP_BLK_ID_DMA_CTL28, raw_num, isp_bufpool[ISP_PRERAW_A].prebe_le[0]);
 
 	for (raw_num = ISP_PRERAW_A; raw_num < ISP_PRERAW_VIRT_MAX; raw_num++) {
 		if (!ictx->isp_pipe_enable[raw_num])
@@ -823,23 +649,7 @@ void _isp_rawtop_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
 		isp_bufpool[raw_num].sts_mem[0].ae_le.size = bufsize;
 		isp_bufpool[raw_num].sts_mem[1].ae_le.phy_addr = _mempool_pop(bufsize);
 		isp_bufpool[raw_num].sts_mem[1].ae_le.size = bufsize;
-
-		if (ictx->isp_pipe_cfg[raw_num].is_hdr_on) {
-			// lmap_se
-			DMA_SETUP_2(ISP_BLK_ID_DMA_CTL31, raw_num);
-			isp_bufpool[raw_num].lmap_se = bufaddr;
-
-			// ae se
-			DMA_SETUP(ISP_BLK_ID_DMA_CTL27, raw_num);
-			isp_bufpool[raw_num].sts_mem[0].ae_se.phy_addr = bufaddr;
-			isp_bufpool[raw_num].sts_mem[0].ae_se.size = bufsize;
-			isp_bufpool[raw_num].sts_mem[1].ae_se.phy_addr = _mempool_pop(bufsize);
-			isp_bufpool[raw_num].sts_mem[1].ae_se.size = bufsize;
-		}
 	}
-
-EXIT:
-	_isp_rawtop_dma_dump(ictx, raw_max);
 }
 
 void _isp_rgbtop_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
@@ -848,18 +658,6 @@ void _isp_rgbtop_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
 	uint32_t bufsize = 0;
 
 	enum cvi_isp_raw raw_num = ISP_PRERAW_A;
-
-	u8 cfg_dma = false;
-
-	//RGB path
-	if (!ictx->isp_pipe_cfg[ISP_PRERAW_A].is_yuv_bypass_path) {
-		cfg_dma = true;
-	} else if (ictx->is_multi_sensor && !ictx->isp_pipe_cfg[ISP_PRERAW_B].is_yuv_bypass_path) {
-		cfg_dma = true;
-	}
-
-	if (cfg_dma == false) //YUV sensor only
-		goto EXIT;
 
 	for (raw_num = ISP_PRERAW_A; raw_num < ISP_PRERAW_VIRT_MAX; raw_num++) {
 		if (!ictx->isp_pipe_enable[raw_num])
@@ -875,7 +673,7 @@ void _isp_rgbtop_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
 		isp_bufpool[raw_num].sts_mem[1].hist_edge_v.size = bufsize;
 
 		// manr
-		if (ictx->is_3dnr_on) {
+		{
 			DMA_SETUP_2(ISP_BLK_ID_DMA_CTL36, raw_num);
 			isp_bufpool[raw_num].manr = bufaddr;
 			ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL37, isp_bufpool[raw_num].manr);
@@ -885,26 +683,11 @@ void _isp_rgbtop_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
 			isp_bufpool[raw_num].sts_mem[0].mmap.size =
 				isp_bufpool[raw_num].sts_mem[1].mmap.size = bufsize;
 
-			if (_is_all_online(ictx)) {
-				ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL32, isp_bufpool[raw_num].rgbmap_le[0]);
-			} else {
-				ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL34, isp_bufpool[raw_num].rgbmap_le[0]);
-				if (_is_fe_be_online(ictx) && ictx->is_rgbmap_sbm_on)
-					ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL32, isp_bufpool[raw_num].rgbmap_le[0]);
-				else
-					ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL32, isp_bufpool[raw_num].rgbmap_le[1]);
-			}
-
-			if (ictx->isp_pipe_cfg[raw_num].is_hdr_on) {
-				ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL35, isp_bufpool[raw_num].rgbmap_se[0]);
-				if (_is_fe_be_online(ictx) && ictx->is_rgbmap_sbm_on)
-					ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL33, isp_bufpool[raw_num].rgbmap_se[0]);
-				else
-					ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL33, isp_bufpool[raw_num].rgbmap_se[1]);
-			}
+			ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL34, isp_bufpool[raw_num].rgbmap_le[0]);
+			ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL32, isp_bufpool[raw_num].rgbmap_le[1]);
 
 			// TNR
-			if (ictx->is_fbc_on) {
+			{
 				u64 bufaddr_tmp = 0;
 
 				bufaddr_tmp = _mempool_get_addr();
@@ -926,28 +709,13 @@ void _isp_rgbtop_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
 
 				ispblk_dma_config(ictx, ISP_BLK_ID_DMA_CTL41, raw_num, bufaddr);
 				isp_bufpool[raw_num].tdnr[1] = bufaddr;
-			} else {
-				DMA_SETUP_2(ISP_BLK_ID_DMA_CTL44, raw_num);
-				ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL42, bufaddr);
-				isp_bufpool[raw_num].tdnr[0] = bufaddr;
-
-				DMA_SETUP_2(ISP_BLK_ID_DMA_CTL43, raw_num);
-				ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL41, bufaddr);
-				isp_bufpool[raw_num].tdnr[1] = bufaddr;
-			}
+			}	
 		}
 
 		// ltm dma
 		ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL39, isp_bufpool[raw_num].lmap_le);
-
-		if (ictx->isp_pipe_cfg[raw_num].is_hdr_on && !ictx->isp_pipe_cfg[raw_num].is_hdr_detail_en)
-			ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL40, isp_bufpool[raw_num].lmap_se);
-		else
-			ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL40, isp_bufpool[raw_num].lmap_le);
-
+		ispblk_dma_setaddr(ictx, ISP_BLK_ID_DMA_CTL40, isp_bufpool[raw_num].lmap_le);
 	}
-EXIT:
-	_isp_rgbtop_dma_dump(ictx, raw_max);
 }
 
 void _isp_yuvtop_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
@@ -1014,7 +782,7 @@ void _isp_yuvtop_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
 	}
 
 EXIT:
-	_isp_yuvtop_dma_dump(ictx, raw_max);
+	return;
 }
 
 void _vi_dma_setup(struct isp_ctx *ictx, enum cvi_isp_raw raw_max)
@@ -1073,10 +841,6 @@ void _vi_dma_set_sw_mode(struct isp_ctx *ctx)
 	// ispblk_dma_set_sw_mode(ctx, ISP_BLK_ID_DMA_CTL33, false); //MANR_P_SE
 	// ispblk_dma_set_sw_mode(ctx, ISP_BLK_ID_DMA_CTL34, false); //MANR_C_LE
 	// ispblk_dma_set_sw_mode(ctx, ISP_BLK_ID_DMA_CTL35, false); //MANR_C_SE
-	ispblk_mmap_dma_mode(ctx, ISP_BLK_ID_DMA_CTL32); //MANR_P_LE
-	ispblk_mmap_dma_mode(ctx, ISP_BLK_ID_DMA_CTL33); //MANR_P_SE
-	ispblk_mmap_dma_mode(ctx, ISP_BLK_ID_DMA_CTL34); //MANR_C_LE
-	ispblk_mmap_dma_mode(ctx, ISP_BLK_ID_DMA_CTL35); //MANR_C_SE
 	ispblk_dma_set_sw_mode(ctx, ISP_BLK_ID_DMA_CTL36, false); //MANR_IIR_R
 	ispblk_dma_set_sw_mode(ctx, ISP_BLK_ID_DMA_CTL37, false); //MANR_IIR_W
 	ispblk_dma_set_sw_mode(ctx, ISP_BLK_ID_DMA_CTL41, false); //TNR_Y_R
@@ -1537,36 +1301,7 @@ static void _isp_rgbtop_init(struct cvi_vi_dev *vdev)
 
 	ispblk_rgbtop_config(ictx, ISP_PRERAW_A);
 
-	ispblk_hist_v_config(ictx, true, 0);
-
 	//ispblk_awb_config(ictx, ISP_BLK_ID_AWB2, true, ISP_AWB_LE);
-
-	ispblk_ccm_config(ictx, ISP_BLK_ID_CCM0, false, &ccm_hw_cfg);
-	ispblk_dhz_config(ictx, false);
-
-	ispblk_ygamma_config(ictx, false, ictx->gamma_tbl_idx, ygamma_data, 0, 0);
-	ispblk_ygamma_enable(ictx, false);
-
-	ispblk_gamma_config(ictx, false, ictx->gamma_tbl_idx, gamma_data, 0);
-	ispblk_gamma_enable(ictx, false);
-
-	//ispblk_clut_config(ictx, false, c_lut_r_lut, c_lut_g_lut, c_lut_b_lut);
-	ispblk_rgbdither_config(ictx, false, false, false, false);
-	ispblk_csc_config(ictx);
-
-	ispblk_manr_config(ictx, ictx->is_3dnr_on);
-
-	if (ictx->is_hdr_on) {
-		ispblk_fusion_config(ictx, true, true, ISP_FS_OUT_FS);
-
-		ispblk_ltm_b_lut(ictx, 0, ltm_b_lut);
-		ispblk_ltm_d_lut(ictx, 0, ltm_d_lut);
-		ispblk_ltm_g_lut(ictx, 0, ltm_g_lut);
-		ispblk_ltm_config(ictx, true, true, true, true);
-	} else {
-		ispblk_fusion_config(ictx, false, false, ISP_FS_OUT_LONG);
-		ispblk_ltm_config(ictx, false, false, false, false);
-	}
 }
 
 static void _isp_yuvtop_init(struct cvi_vi_dev *vdev)
@@ -2266,69 +2001,25 @@ void _vi_pre_fe_ctrl_setup(enum cvi_isp_raw raw_num, struct cvi_vi_dev *vdev)
 {
 	struct isp_ctx *ictx = &vdev->ctx;
 	u32 blc_le_id, blc_se_id, wbg_le_id, wbg_se_id;
-	struct cif_yuv_swap_s swap = {0};
 
-	if (ictx->isp_pipe_cfg[raw_num].is_yuv_bypass_path) {//YUV sensor
-		if (ictx->isp_pipe_cfg[raw_num].is_422_to_420) {//uyvy to yuyv to 420
-			swap.devno = raw_num;
-			swap.yc_swap = 1;
-			swap.uv_swap = 1;
-			_vi_call_cb(E_MODULE_CIF, CVI_MIPI_SET_YUV_SWAP, &swap);
-		}
+	blc_le_id = ISP_BLC_ID_FE0_LE;
+	blc_se_id = ISP_BLC_ID_FE0_SE;
+	wbg_le_id = ISP_WBG_ID_FE0_RGBMAP_LE;
+	wbg_se_id = ISP_WBG_ID_FE0_RGBMAP_SE;
 
-		ispblk_csibdg_yuv_bypass_config(ictx, raw_num);
+	ispblk_preraw_fe_config(ictx, raw_num);
+	ispblk_csibdg_config(ictx, raw_num);
+	ispblk_csibdg_crop_update(ictx, raw_num, true);
 
-		if (ictx->isp_pipe_cfg[raw_num].is_offline_scaler) { //vi vpss offline mode
-			u8 total_chn = (raw_num == ISP_PRERAW_A) ?
-					ictx->rawb_chnstr_num :
-					ictx->total_chn_num;
-			u8 chn_str = (raw_num == ISP_PRERAW_A) ? 0 : ictx->rawb_chnstr_num;
+	ispblk_blc_set_gain(ictx, blc_le_id, 0x40f, 0x419, 0x419, 0x405);
+	ispblk_blc_enable(ictx, blc_le_id, false, false);
 
-			for (; chn_str < total_chn; chn_str++)
-				_isp_yuv_bypass_buf_enq(vdev, raw_num, chn_str);
-		}
-	} else { //RGB sensor
-		if (raw_num == ISP_PRERAW_A) {
-			blc_le_id = ISP_BLC_ID_FE0_LE;
-			blc_se_id = ISP_BLC_ID_FE0_SE;
-			wbg_le_id = ISP_WBG_ID_FE0_RGBMAP_LE;
-			wbg_se_id = ISP_WBG_ID_FE0_RGBMAP_SE;
-		} else if (raw_num == ISP_PRERAW_B) {
-			blc_le_id = ISP_BLC_ID_FE1_LE;
-			blc_se_id = ISP_BLC_ID_FE1_SE;
-			wbg_le_id = ISP_WBG_ID_FE1_RGBMAP_LE;
-			wbg_se_id = ISP_WBG_ID_FE1_RGBMAP_SE;
-		} else {
-			blc_le_id = ISP_BLC_ID_FE2_LE;
-			wbg_le_id = ISP_WBG_ID_FE2_RGBMAP_LE;
-		}
+	ispblk_wbg_config(ictx, wbg_le_id, 0x400, 0x400, 0x400);
+	ispblk_wbg_enable(ictx, wbg_le_id, false, false);
 
-		ispblk_preraw_fe_config(ictx, raw_num);
-		ispblk_csibdg_config(ictx, raw_num);
-		ispblk_csibdg_crop_update(ictx, raw_num, true);
+	ispblk_rgbmap_config(ictx, ISP_BLK_ID_RGBMAP0, ictx->is_3dnr_on, raw_num);
 
-		ispblk_blc_set_gain(ictx, blc_le_id, 0x40f, 0x419, 0x419, 0x405);
-		ispblk_blc_enable(ictx, blc_le_id, false, false);
-
-		ispblk_wbg_config(ictx, wbg_le_id, 0x400, 0x400, 0x400);
-		ispblk_wbg_enable(ictx, wbg_le_id, false, false);
-
-		ispblk_rgbmap_config(ictx, ISP_BLK_ID_RGBMAP0, ictx->is_3dnr_on, raw_num);
-
-		if (ictx->isp_pipe_cfg[raw_num].is_hdr_on && !ictx->is_synthetic_hdr_on) {
-			ispblk_blc_set_gain(ictx, blc_se_id, 0x40f, 0x419, 0x419, 0x405);
-			ispblk_blc_enable(ictx, blc_se_id, false, false);
-
-			ispblk_wbg_config(ictx, wbg_se_id, 0x400, 0x400, 0x400);
-			ispblk_wbg_enable(ictx, wbg_se_id, false, false);
-
-			ispblk_rgbmap_config(ictx, ISP_BLK_ID_RGBMAP1, ictx->is_3dnr_on, raw_num);
-		} else {
-			if (raw_num <= ISP_PRERAW_B) {
-				ispblk_rgbmap_config(ictx, ISP_BLK_ID_RGBMAP1, false, raw_num);
-			}
-		}
-	}
+	ispblk_rgbmap_config(ictx, ISP_BLK_ID_RGBMAP1, false, raw_num);
 }
 
 void _vi_ctrl_init(enum cvi_isp_raw raw_num, struct cvi_vi_dev *vdev)
@@ -3613,8 +3304,6 @@ static inline void _post_ctrl_update(struct cvi_vi_dev *vdev, const enum cvi_isp
 	struct isp_ctx *ctx = &vdev->ctx;
 
 	ispblk_post_cfg_update(ctx, raw_num);
-
-	ispblk_fusion_hdr_cfg(ctx, raw_num);
 
 	_vi_clear_mmap_fbc_ring_base(vdev, raw_num);
 

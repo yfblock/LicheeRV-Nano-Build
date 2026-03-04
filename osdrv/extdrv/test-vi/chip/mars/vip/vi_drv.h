@@ -603,26 +603,6 @@ void ispblk_lcac_config(struct isp_ctx *ctx, bool en, uint8_t test_case);
  *	RGB TOP SUBSYS
  ****************************************************************************/
 void ispblk_lsc_config(struct isp_ctx *ctx, bool en);
-void ispblk_fusion_hdr_cfg(struct isp_ctx *ctx, enum cvi_isp_raw raw_num);
-void ispblk_fusion_config(struct isp_ctx *ctx, bool enable, bool mc_enable, enum ISP_FS_OUT out_sel);
-void ispblk_ltm_d_lut(struct isp_ctx *ctx, uint8_t sel, uint16_t *data);
-void ispblk_ltm_b_lut(struct isp_ctx *ctx, uint8_t sel, uint16_t *data);
-void ispblk_ltm_g_lut(struct isp_ctx *ctx, uint8_t sel, uint16_t *data);
-void ispblk_ltm_config(struct isp_ctx *ctx, u8 ltm_en, u8 dehn_en, u8 behn_en, u8 ee_en);
-void ispblk_ccm_config(struct isp_ctx *ctx, enum ISP_BLK_ID_T blk_id, bool en, struct isp_ccm_cfg *cfg);
-void ispblk_hist_v_config(struct isp_ctx *ctx, bool en, uint8_t test_case);
-void ispblk_dhz_config(struct isp_ctx *ctx, bool en);
-void ispblk_ygamma_config(struct isp_ctx *ctx, bool en,
-				uint8_t sel, uint16_t *data, uint8_t inv, uint8_t test_case);
-void ispblk_ygamma_enable(struct isp_ctx *ctx, bool enable);
-void ispblk_gamma_config(struct isp_ctx *ctx, bool en, uint8_t sel, uint16_t *data, uint8_t inv);
-void ispblk_gamma_enable(struct isp_ctx *ctx, bool enable);
-void ispblk_clut_config(struct isp_ctx *ctx, bool en,
-				int16_t *r_lut, int16_t *g_lut, int16_t *b_lut);
-void ispblk_rgbdither_config(struct isp_ctx *ctx, bool en, bool mod_en, bool histidx_en, bool fmnum_en);
-void ispblk_csc_config(struct isp_ctx *ctx);
-void ispblk_manr_config(struct isp_ctx *ctx, bool en);
-void ispblk_ir_merge_config(struct isp_ctx *ctx);
 
 /****************************************************************************
  *	YUV TOP SUBSYS
@@ -665,7 +645,6 @@ void isp_csi_intr_status(
 void ispblk_tnr_rgbmap_chg(struct isp_ctx *ctx, enum cvi_isp_raw raw_num, const u8 chn_num);
 void ispblk_tnr_post_chg(struct isp_ctx *ctx, enum cvi_isp_raw raw_num);
 void ispblk_mmap_dma_config(struct isp_ctx *ctx, enum cvi_isp_raw raw_num, int dmaid);
-void ispblk_mmap_dma_mode(struct isp_ctx *ctx, uint32_t dmaid);
 
 /****************************************************************************
  *	Runtime Control Flow Config

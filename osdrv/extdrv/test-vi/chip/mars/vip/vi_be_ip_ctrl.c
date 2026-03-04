@@ -22,18 +22,6 @@ void ispblk_dpc_config(struct isp_ctx *ctx, enum ISP_RAW_PATH path, bool enable,
 	reg_2.bits.DPC_DYNAMICBPC_ENABLE = enable;
 	reg_2.bits.DPC_STATICBPC_ENABLE = enable;
 	ISP_WR_REG(dpc, REG_ISP_DPC_T, DPC_2, reg_2.raw);
-
-	if (test_case == 1) { // test static dpc
-		reg_2.raw = ISP_RD_REG(dpc, REG_ISP_DPC_T, DPC_2);
-		reg_2.bits.DPC_DYNAMICBPC_ENABLE = 0;
-		reg_2.bits.DPC_STATICBPC_ENABLE = 1;
-		ISP_WR_REG(dpc, REG_ISP_DPC_T, DPC_2, reg_2.raw);
-	} else if (test_case == 2) { // test dynamic dpc
-		reg_2.raw = ISP_RD_REG(dpc, REG_ISP_DPC_T, DPC_2);
-		reg_2.bits.DPC_DYNAMICBPC_ENABLE = 1;
-		reg_2.bits.DPC_STATICBPC_ENABLE = 0;
-		ISP_WR_REG(dpc, REG_ISP_DPC_T, DPC_2, reg_2.raw);
-	}
 }
 
 /**

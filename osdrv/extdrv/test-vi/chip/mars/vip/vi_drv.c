@@ -2149,13 +2149,10 @@ void isp_runtime_hdr_patgen(struct isp_ctx *ctx, const enum cvi_isp_raw raw_num,
 		ISP_WR_REG(rawtop, REG_RAW_TOP_T, RDMI_ENABLE, rdmi_enable.raw);
 
 		if (en) {
-			ispblk_fusion_config(ctx, en, en, ISP_FS_OUT_FS);
-
 			fs_ctrl.raw = ISP_RD_REG(ba, REG_FUSION_T, FS_CTRL_0);
 			fs_ctrl.bits.SE_IN_SEL			= 1;
 			ISP_WR_REG(ba, REG_FUSION_T, FS_CTRL_0, fs_ctrl.raw);
 		} else {
-			ispblk_fusion_config(ctx, en, en, ISP_FS_OUT_LONG);
 		}
 	}
 }

@@ -177,35 +177,26 @@ void ispblk_tnr_config(struct isp_ctx *ctx, bool en, u8 test_case)
 	union REG_ISP_444_422_14 tnr_14;
 	union REG_ISP_444_422_15 tnr_15;
 
-	if (en) {
-		tnr_13.raw = 0;
-		tnr_13.bits.REG_3DNR_Y_LUT_IN_0 = 0;
-		tnr_13.bits.REG_3DNR_Y_LUT_IN_1 = 255;
-		tnr_13.bits.REG_3DNR_Y_LUT_IN_2 = 255;
-		tnr_13.bits.REG_3DNR_Y_LUT_IN_3 = 255;
-		ISP_WR_REG(tnr, REG_ISP_444_422_T, REG_13, tnr_13.raw);
+	tnr_13.raw = 0;
+	tnr_13.bits.REG_3DNR_Y_LUT_IN_0 = 0;
+	tnr_13.bits.REG_3DNR_Y_LUT_IN_1 = 255;
+	tnr_13.bits.REG_3DNR_Y_LUT_IN_2 = 255;
+	tnr_13.bits.REG_3DNR_Y_LUT_IN_3 = 255;
+	ISP_WR_REG(tnr, REG_ISP_444_422_T, REG_13, tnr_13.raw);
 
-		tnr_14.raw = 0;
-		tnr_14.bits.REG_3DNR_Y_LUT_OUT_0 = 0;
-		tnr_14.bits.REG_3DNR_Y_LUT_OUT_1 = 255;
-		tnr_14.bits.REG_3DNR_Y_LUT_OUT_2 = 255;
-		tnr_14.bits.REG_3DNR_Y_LUT_OUT_3 = 255;
-		ISP_WR_REG(tnr, REG_ISP_444_422_T, REG_14, tnr_14.raw);
+	tnr_14.raw = 0;
+	tnr_14.bits.REG_3DNR_Y_LUT_OUT_0 = 0;
+	tnr_14.bits.REG_3DNR_Y_LUT_OUT_1 = 255;
+	tnr_14.bits.REG_3DNR_Y_LUT_OUT_2 = 255;
+	tnr_14.bits.REG_3DNR_Y_LUT_OUT_3 = 255;
+	ISP_WR_REG(tnr, REG_ISP_444_422_T, REG_14, tnr_14.raw);
 
-		tnr_15.raw = 0;
-		tnr_15.bits.REG_3DNR_Y_LUT_SLOPE_0 = 16;
-		tnr_15.bits.REG_3DNR_Y_LUT_SLOPE_1 = 16;
-		ISP_WR_REG(tnr, REG_ISP_444_422_T, REG_15, tnr_15.raw);
+	tnr_15.raw = 0;
+	tnr_15.bits.REG_3DNR_Y_LUT_SLOPE_0 = 16;
+	tnr_15.bits.REG_3DNR_Y_LUT_SLOPE_1 = 16;
+	ISP_WR_REG(tnr, REG_ISP_444_422_T, REG_15, tnr_15.raw);
 
-		ISP_WR_BITS(tnr, REG_ISP_444_422_T, REG_16, REG_3DNR_Y_LUT_SLOPE_2, 16);
-
-		if (test_case == 1) {
-			//select not pixel mode
-			ISP_WR_BITS(tnr, REG_ISP_444_422_T, REG_16, MOTION_SEL, 0);
-			//motion map output
-			ISP_WR_BITS(tnr, REG_ISP_444_422_T, REG_8, TDNR_DEBUG_SEL, 1);
-		}
-	}
+	ISP_WR_BITS(tnr, REG_ISP_444_422_T, REG_16, REG_3DNR_Y_LUT_SLOPE_2, 16);
 
 	ISP_WR_BITS(tnr, REG_ISP_444_422_T, REG_4, REG_422_444, ctx->is_yuv_sensor);
 
@@ -428,56 +419,34 @@ void ispblk_cnr_config(struct isp_ctx *ctx, bool en, bool pfc_en, uint8_t str_mo
 	// test_case = 0, for cnr_all_off and cnr_all_on, use default lut
 	//   if cnr_all_off, en = 0, pfc_en = 0, str_mode = 255
 	//   if cnr_all_on, en = 1, pfc_en = 1, str_mode = 255
-	if (test_case == 0) {
-		reg_00.raw = ISP_RD_REG(cnr, REG_ISP_CNR_T, CNR_ENABLE);
-		reg_00.bits.CNR_ENABLE = en;
-		reg_00.bits.PFC_ENABLE = pfc_en;
-		reg_00.bits.CNR_DIFF_SHIFT_VAL = 255;
-		reg_00.bits.CNR_RATIO = 0;
-		reg_00.bits.CNR_OUT_SEL = 0;
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_ENABLE, reg_00.raw);
+	reg_00.raw = ISP_RD_REG(cnr, REG_ISP_CNR_T, CNR_ENABLE);
+	reg_00.bits.CNR_ENABLE = en;
+	reg_00.bits.PFC_ENABLE = pfc_en;
+	reg_00.bits.CNR_DIFF_SHIFT_VAL = 255;
+	reg_00.bits.CNR_RATIO = 0;
+	reg_00.bits.CNR_OUT_SEL = 0;
+	ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_ENABLE, reg_00.raw);
 
-		reg_01.raw = ISP_RD_REG(cnr, REG_ISP_CNR_T, CNR_STRENGTH_MODE);
-		reg_01.bits.CNR_STRENGTH_MODE = str_mode;
-		reg_01.bits.CNR_FLAG_NEIGHBOR_MAX_WEIGHT = 1;
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_STRENGTH_MODE, reg_01.raw);
+	reg_01.raw = ISP_RD_REG(cnr, REG_ISP_CNR_T, CNR_STRENGTH_MODE);
+	reg_01.bits.CNR_STRENGTH_MODE = str_mode;
+	reg_01.bits.CNR_FLAG_NEIGHBOR_MAX_WEIGHT = 1;
+	ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_STRENGTH_MODE, reg_01.raw);
 
-		reg_02.raw = ISP_RD_REG(cnr, REG_ISP_CNR_T, CNR_PURPLE_TH);
-		reg_02.bits.CNR_PURPLE_TH = 85;
-		reg_02.bits.CNR_CORRECT_STRENGTH = 96;
-		reg_02.bits.CNR_DIFF_GAIN = 4;
-		reg_02.bits.CNR_MOTION_ENABLE = 0;
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_PURPLE_TH, reg_02.raw);
+	reg_02.raw = ISP_RD_REG(cnr, REG_ISP_CNR_T, CNR_PURPLE_TH);
+	reg_02.bits.CNR_PURPLE_TH = 85;
+	reg_02.bits.CNR_CORRECT_STRENGTH = 96;
+	reg_02.bits.CNR_DIFF_GAIN = 4;
+	reg_02.bits.CNR_MOTION_ENABLE = 0;
+	ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_PURPLE_TH, reg_02.raw);
 
-		reg_03.raw = ISP_RD_REG(cnr, REG_ISP_CNR_T, CNR_EDGE_SCALE);
-		reg_03.bits.CNR_EDGE_SCALE = 12;
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_EDGE_SCALE, reg_03.raw);
+	reg_03.raw = ISP_RD_REG(cnr, REG_ISP_CNR_T, CNR_EDGE_SCALE);
+	reg_03.bits.CNR_EDGE_SCALE = 12;
+	ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_EDGE_SCALE, reg_03.raw);
 
-		reg_04.raw = ISP_RD_REG(cnr, REG_ISP_CNR_T, CNR_EDGE_RATIO_SPEED);
-		reg_04.bits.CNR_CB_STR = 8;
-		reg_04.bits.CNR_CR_STR = 8;
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_EDGE_RATIO_SPEED, reg_04.raw);
-	} else if (test_case == 1) { // for cnr_set_lut, other registers with default values
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_MOTION_LUT_0, 0x1E1E1E1E);
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_MOTION_LUT_4, 0x1E1E1E1E);
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_MOTION_LUT_8, 0x1E1E1E1E);
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_MOTION_LUT_12, 0x1E1E1E1E);
-
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_CORING_MOTION_LUT_0, 0xFFFFFFFF);
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_CORING_MOTION_LUT_4, 0xFFFFFFFF);
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_CORING_MOTION_LUT_8, 0xFFFFFFFF);
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_CORING_MOTION_LUT_12, 0xFFFFFFFF);
-
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_EDGE_SCALE_LUT_0, 0x20202020);
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_EDGE_SCALE_LUT_4, 0x20202020);
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_EDGE_SCALE_LUT_8, 0x20202020);
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_EDGE_SCALE_LUT_12, 0x20202020);
-
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, WEIGHT_LUT_INTER_CNR_00, 0x10101010);
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, WEIGHT_LUT_INTER_CNR_04, 0x10101010);
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, WEIGHT_LUT_INTER_CNR_08, 0x10101010);
-		ISP_WR_REG(cnr, REG_ISP_CNR_T, WEIGHT_LUT_INTER_CNR_12, 0x10101010);
-	}
+	reg_04.raw = ISP_RD_REG(cnr, REG_ISP_CNR_T, CNR_EDGE_RATIO_SPEED);
+	reg_04.bits.CNR_CB_STR = 8;
+	reg_04.bits.CNR_CR_STR = 8;
+	ISP_WR_REG(cnr, REG_ISP_CNR_T, CNR_EDGE_RATIO_SPEED, reg_04.raw);
 }
 
 
@@ -740,17 +709,6 @@ void ispblk_ldci_config(struct isp_ctx *ctx, bool en, uint8_t test_case)
 	var_norm_y.raw = 0;
 	var_norm_y.bits.LDCI_VAR_NORM_Y = (1 << 13) / MAX(line_var_num, 1);
 	ISP_WR_REG(ldci, REG_ISP_LDCI_T, LDCI_VAR_NORM_Y, var_norm_y.raw);
-
-	if (test_case == 1) {
-		ISP_WR_REG(ldci, REG_ISP_LDCI_T, LDCI_TONE_CURVE_LUT_P_00, (1023 << 16) | (1023));
-		ISP_WR_REG(ldci, REG_ISP_LDCI_T, LDCI_TONE_CURVE_LUT_P_02, (1023 << 16) | (1023));
-		ISP_WR_REG(ldci, REG_ISP_LDCI_T, LDCI_TONE_CURVE_LUT_P_04, (1023 << 16) | (1023));
-		ISP_WR_REG(ldci, REG_ISP_LDCI_T, LDCI_TONE_CURVE_LUT_P_06, (1023 << 16) | (1023));
-		ISP_WR_REG(ldci, REG_ISP_LDCI_T, LDCI_TONE_CURVE_LUT_P_08, (1023 << 16) | (1023));
-		ISP_WR_REG(ldci, REG_ISP_LDCI_T, LDCI_TONE_CURVE_LUT_P_10, (1023 << 16) | (1023));
-		ISP_WR_REG(ldci, REG_ISP_LDCI_T, LDCI_TONE_CURVE_LUT_P_12, (1023 << 16) | (1023));
-		ISP_WR_REG(ldci, REG_ISP_LDCI_T, LDCI_TONE_CURVE_LUT_P_14, (1023 << 16) | (1023));
-	}
 
 	ISP_WR_BITS(ldci, REG_ISP_LDCI_T, LDCI_ENABLE, LDCI_ENABLE, en);
 	ISP_WR_BITS(ldci, REG_ISP_LDCI_T, DMI_ENABLE, DMI_ENABLE, en ? 3 : 0);

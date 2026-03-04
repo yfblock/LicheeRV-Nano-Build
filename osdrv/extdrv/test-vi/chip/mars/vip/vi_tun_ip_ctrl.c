@@ -968,8 +968,6 @@ void ispblk_clut_tun_cfg(
 
 	if (cfg->is_update_partial) { //partail update table
 		ispblk_clut_partial_update(ctx, cfg, raw_num);
-	} else if (!(_is_all_online(ctx) || (_is_fe_be_online(ctx) && ctx->is_slice_buf_on))) {
-		ispblk_clut_config(ctx, cfg->enable, cfg->r_lut, cfg->g_lut, cfg->b_lut);
 	}
 }
 
@@ -1058,10 +1056,6 @@ void ispblk_drc_tun_cfg(
 			ISP_WR_REG(rawtop, REG_RAW_TOP_T, SE_LMAP_GRID_NUMBER, se_lmap_size.raw);
 		}
 	}
-
-	ispblk_ltm_g_lut(ctx, 0, cfg->global_lut);
-	ispblk_ltm_b_lut(ctx, 0, cfg->brit_lut);
-	ispblk_ltm_d_lut(ctx, 0, cfg->dark_lut);
 
 	ISP_WR_REGS_BURST(ba, REG_LTM_T, REG_H90, cfg->drc_1_cfg, cfg->drc_1_cfg.REG_H90);
 	ISP_WR_REGS_BURST(ba, REG_LTM_T, REG_H14, cfg->drc_2_cfg, cfg->drc_2_cfg.REG_H14);
