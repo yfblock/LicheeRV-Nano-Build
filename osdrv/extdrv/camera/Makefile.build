@@ -1,0 +1,49 @@
+# Kbuild for camera.ko（在 build/ 下执行，$(src)=build）
+# 合并 vi 与 mipi-rx 子目录源码，生成单一模块 camera.ko
+
+obj-m := camera.o
+
+# 单一模块入口（唯一 module_init/module_exit）
+# VI 对象（路径相对 build：vi/...）
+# MIPI-RX 对象（路径相对 build：mipi-rx/...）
+camera-objs := camera_init.o \
+		vi/common/vi_core.o \
+		vi/chip/mars/vi.o \
+		vi/chip/mars/vi_ext.o \
+		vi/chip/mars/vi_sdk_layer.o \
+		vi/chip/mars/vi_isp_buf_ctrl.o \
+		vi/chip/mars/vi_raw_dump.o \
+		vi/chip/mars/vip/vi_drv.o \
+		vi/chip/mars/vip/vi_subsys_ctrl.o \
+		vi/chip/mars/vip/vi_fe_ip_ctrl.o \
+		vi/chip/mars/vip/vi_be_ip_ctrl.o \
+		vi/chip/mars/vip/vi_raw_ip_ctrl.o \
+		vi/chip/mars/vip/vi_rgb_ip_ctrl.o \
+		vi/chip/mars/vip/vi_yuv_ip_ctrl.o \
+		vi/chip/mars/vip/vi_tun_ip_ctrl.o \
+		mipi-rx/chip/mars/cif.o \
+		mipi-rx/chip/mars/drv/cif_drv.o
+
+# VI 头文件路径（$(src)=build）
+ccflags-y += -I$(src)/vi/chip/mars -I$(src)/vi/common
+# MIPI-RX 头文件路径
+ccflags-y += -I$(src)/mipi-rx/chip/mars -I$(src)/mipi-rx/chip/mars/drv -I$(src)/mipi-rx/chip/mars/drv/inc
+# interdrv（build 的 ../../../ = osdrv）
+ccflags-y += -I$(src)/../../../interdrv/v2/include/common/uapi
+ccflags-y += -I$(src)/../../../interdrv/v2/include/chip/mars/uapi
+ccflags-y += -I$(src)/../../../interdrv/v2/include/common/kapi
+ccflags-y += -I$(src)/../../../interdrv/v2/include
+ccflags-y += -I$(src)/../../../interdrv/v2/base
+ccflags-y += -I$(src)/../../../interdrv/v2/base/chip/mars
+ccflags-y += -I$(src)/../../../interdrv/v2/sys/common
+ccflags-y += -I$(src)/../../../interdrv/v2/sys/common/uapi
+ccflags-y += -I$(srctree)/drivers/tee
+ccflags-y += -I$(srctree)/drivers/staging/android
+ccflags-y += -I$(srctree)/drivers/pinctrl/cvitek
+
+ccflags-y += -Wall -Wextra -Werror -Wno-unused-parameter -Wno-sign-compare -Wno-error=unused-variable
+
+# 依赖 base/sys 等模块导出的符号
+KBUILD_EXTRA_SYMBOLS = $(src)/../../../interdrv/v2/base/Module.symvers
+KBUILD_EXTRA_SYMBOLS += $(src)/../../../interdrv/v2/sys/Module.symvers
+KBUILD_EXTRA_SYMBOLS += $(src)/../../../interdrv/v2/Module.symvers
