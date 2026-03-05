@@ -4,9 +4,10 @@
 obj-m := camera.o
 
 # 单一模块入口（唯一 module_init/module_exit）
-# VI 对象（路径相对 build：vi/...）
-# MIPI-RX 对象（路径相对 build：mipi-rx/...）
+# VI / MIPI-RX / Rust FFI（sg200x-vi 必须参与链接）
 camera-objs := camera_init.o \
+		rust_kernel.o \
+		sg200x_vi.o \
 		vi/common/vi_core.o \
 		vi/chip/mars/vi.o \
 		vi/chip/mars/vi_ext.o \

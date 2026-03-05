@@ -1,2 +1,4 @@
 /build/
 .cache/
+sg200x-vi/target/
+compile_commands.json

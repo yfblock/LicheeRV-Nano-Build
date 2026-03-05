@@ -97,20 +97,18 @@ echo "========== 传输方式: ${TRANSPORT} =========="
 
 echo "========== 步骤 2: 编译 =========="
 cd "${SCRIPT_DIR}"
-source ../../../build/envsetup_soc.sh >/dev/null 2>&1
-olddefconfig >/dev/null 2>&1
-make >/dev/null 
+./build.sh >/dev/null
 
 if [[ ! -f "${BUILD_DIR}/${KO_NAME}" ]]; then
 	echo "错误: 未生成 ${BUILD_DIR}/${KO_NAME}"
 	exit 1
 fi
 
-echo "========== 步骤 3: 推送 test_vi.ko 到设备（${TRANSPORT}）=========="
+echo "========== 步骤 3: 推送 ${KO_NAME} 到设备（${TRANSPORT}）=========="
 push_file "${BUILD_DIR}/${KO_NAME}" "${DEVICE_KO_PATH}"
 
 echo "========== 步骤 4: 卸载旧模块（若已挂载）并挂载新模块 =========="
-run_remote "rmmod test_vi 2>/dev/null || true"
+run_remote "rmmod camera 2>/dev/null || true"
 run_remote "dmesg -c >/dev/null || true"
 run_remote "insmod ${DEVICE_KO_PATH}"
 

@@ -1,0 +1,21 @@
+[package]
+name = "sg200x-vi"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+
+[profile.release]
+# 体积优化：LTO、最小代码、无符号/无调试、溢出不检查
+lto = true
+opt-level = "z"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+debug = false
+overflow-checks = false
+# 避免拉入不必要的默认 feature，减小 compiler_builtins 等
+debug-assertions = false
