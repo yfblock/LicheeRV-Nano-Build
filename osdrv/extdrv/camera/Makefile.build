@@ -1,0 +1,50 @@
+# 合并 VI + MIPI RX 为单一内核模块 camera.ko
+# 源码在 build 下：vi/（common、chip/mars）、mipi-rx/（根目录 + drv）
+# $(src) = .../extdrv/camera/build
+
+obj-m := camera.o
+
+# VI 部分（路径相对 build，下同）
+camera-objs += vi/common/vi_core.o
+camera-objs += vi/chip/mars/vi.o
+camera-objs += vi/chip/mars/vi_ext.o
+camera-objs += vi/chip/mars/vi_sdk_layer.o
+camera-objs += vi/chip/mars/vi_isp_buf_ctrl.o
+camera-objs += vi/chip/mars/vi_raw_dump.o
+camera-objs += vi/chip/mars/vip/vi_drv.o
+camera-objs += vi/chip/mars/vip/vi_subsys_ctrl.o
+camera-objs += vi/chip/mars/vip/vi_fe_ip_ctrl.o
+camera-objs += vi/chip/mars/vip/vi_be_ip_ctrl.o
+camera-objs += vi/chip/mars/vip/vi_raw_ip_ctrl.o
+camera-objs += vi/chip/mars/vip/vi_rgb_ip_ctrl.o
+camera-objs += vi/chip/mars/vip/vi_yuv_ip_ctrl.o
+camera-objs += vi/chip/mars/vip/vi_tun_ip_ctrl.o
+# MIPI RX 部分
+camera-objs += mipi-rx/cif.o
+camera-objs += mipi-rx/drv/cif_drv.o
+
+# 头文件搜索路径：VI
+ccflags-y += -I$(src)/vi/chip/mars -I$(src)/vi/common
+# 头文件搜索路径：MIPI RX
+ccflags-y += -I$(src)/mipi-rx
+ccflags-y += -I$(src)/mipi-rx/drv
+ccflags-y += -I$(src)/mipi-rx/drv/inc
+# interdrv 等（$(src)=.../camera/build -> ../../../ = osdrv）
+ccflags-y += -I$(src)/../../../interdrv/v2/include/common/uapi
+ccflags-y += -I$(src)/../../../interdrv/v2/include/chip/mars/uapi
+ccflags-y += -I$(src)/../../../interdrv/v2/include/common/kapi
+ccflags-y += -I$(src)/../../../interdrv/v2/include
+ccflags-y += -I$(src)/../../../interdrv/v2/base
+ccflags-y += -I$(src)/../../../interdrv/v2/base/chip/mars
+ccflags-y += -I$(src)/../../../interdrv/v2/sys/common
+ccflags-y += -I$(src)/../../../interdrv/v2/sys/common/uapi
+ccflags-y += -I$(srctree)/drivers/tee
+ccflags-y += -I$(srctree)/drivers/staging/android
+ccflags-y += -I$(srctree)/drivers/pinctrl/cvitek
+
+ccflags-y += -Wall -Wextra -Werror -Wno-unused-parameter -Wno-sign-compare -Wno-error=unused-variable
+
+# 依赖 base/sys 等模块导出的符号
+KBUILD_EXTRA_SYMBOLS = $(src)/../../../interdrv/v2/base/Module.symvers
+KBUILD_EXTRA_SYMBOLS += $(src)/../../../interdrv/v2/sys/Module.symvers
+KBUILD_EXTRA_SYMBOLS += $(src)/../../../interdrv/v2/Module.symvers

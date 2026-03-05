@@ -1,6 +1,10 @@
 #include <vi_core.h>
 #include <base_cb.h>
 
+/* 合并模块入口：从 mipi-rx/cif.c 调用，避免重复的 init_module/cleanup_module */
+extern int __init cvi_cif_init(void);
+extern void __exit cvi_cif_exit(void);
+
 #define CVI_VI_IRQ_NAME            "isp"
 #define CVI_VI_CLASS_NAME          "cvi-vi"
 #define CVI_VI_DEV_NAME            "cvi-vi"
@@ -247,7 +251,28 @@ static struct platform_driver vi_core_driver = {
 	},
 };
 
-module_platform_driver(vi_core_driver);
+/* 单一模块入口：先 CIF 再 VI，退出时先 VI 再 CIF */
+static int __init camera_init(void)
+{
+	int rc;
+
+	rc = cvi_cif_init();
+	if (rc)
+		return rc;
+	rc = platform_driver_register(&vi_core_driver);
+	if (rc)
+		cvi_cif_exit();
+	return rc;
+}
+
+static void __exit camera_exit(void)
+{
+	platform_driver_unregister(&vi_core_driver);
+	cvi_cif_exit();
+}
+
+module_init(camera_init);
+module_exit(camera_exit);
 MODULE_AUTHOR("CVITEK Inc.");
 MODULE_DESCRIPTION("Cvitek video input driver");
 MODULE_LICENSE("GPL");
