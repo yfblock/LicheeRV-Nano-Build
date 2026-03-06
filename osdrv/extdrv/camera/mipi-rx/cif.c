@@ -13,6 +13,7 @@
 #include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/cvi_defines.h>
+#include "linux/printk.h"
 #include "pinctrl-mars.h"
 #include <linux/ctype.h>
 #include <linux/version.h>
@@ -654,6 +655,8 @@ static int cif_init_miscdev(struct platform_device *pdev, struct cvi_cif_dev *de
 
 		ctx->mac_phys_regs = cif_get_mac_phys_reg_bases(i);
 		ctx->wrap_phys_regs = cif_get_wrap_phys_reg_bases(i);
+		pr_info("---- ctx->mac_phys_regs  = 0x%08x\n", (u32)(uintptr_t)ctx->mac_phys_regs);
+		pr_info("---- ctx->wrap_phys_regs = 0x%08x\n", (u32)(uintptr_t)ctx->wrap_phys_regs);
 	}
 
 	/* register cif_cb */
@@ -761,20 +764,9 @@ static int _init_resource(struct platform_device *pdev)
 		cif_set_base_addr(1, reg_base[2], reg_base[1]);
 	if (i > 3)
 		cif_set_base_addr(2, reg_base[3], reg_base[1]);
+	pr_info("-------- i number: %d\n", i);
 	/* init pad_ctrl. */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, i);
-	if (!res) {
-		dev_info(&pdev->dev, "no pad_ctrl for cif\n");
-	} else {
-#if (KERNEL_VERSION(5, 10, 0) <= LINUX_VERSION_CODE)
-		dev->pad_ctrl = devm_ioremap(&pdev->dev, res->start, res->end - res->start);
-#else
-		dev->pad_ctrl = devm_ioremap_nocache(&pdev->dev, res->start, res->end - res->start);
-#endif
-		dev_info(&pdev->dev,
-			 "pad-ctrl res-reg: start: 0x%llx, end: 0x%llx.",
-			 res->start, res->end);
-	}
 
 	/* Init max mac clock. */
 	if (max_mac_clk <= 400)

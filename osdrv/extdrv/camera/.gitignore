@@ -2,3 +2,6 @@
 .cache/
 sg200x-vi/target/
 compile_commands.json
+dmesg_capture.txt
+sample_0.yuv
+preview.png

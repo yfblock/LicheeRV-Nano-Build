@@ -22,13 +22,13 @@ camera-objs := camera_init.o \
 		vi/chip/mars/vip/vi_rgb_ip_ctrl.o \
 		vi/chip/mars/vip/vi_yuv_ip_ctrl.o \
 		vi/chip/mars/vip/vi_tun_ip_ctrl.o \
-		mipi-rx/chip/mars/cif.o \
-		mipi-rx/chip/mars/drv/cif_drv.o
+		mipi-rx/cif.o \
+		mipi-rx/drv/cif_drv.o
 
 # VI 头文件路径（$(src)=build）
 ccflags-y += -I$(src)/vi/chip/mars -I$(src)/vi/common
 # MIPI-RX 头文件路径
-ccflags-y += -I$(src)/mipi-rx/chip/mars -I$(src)/mipi-rx/chip/mars/drv -I$(src)/mipi-rx/chip/mars/drv/inc
+ccflags-y += -I$(src)/mipi-rx -I$(src)/mipi-rx/drv -I$(src)/mipi-rx/drv/inc
 # interdrv（build 的 ../../../ = osdrv）
 ccflags-y += -I$(src)/../../../interdrv/v2/include/common/uapi
 ccflags-y += -I$(src)/../../../interdrv/v2/include/chip/mars/uapi
