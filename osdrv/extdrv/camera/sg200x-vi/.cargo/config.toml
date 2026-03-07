@@ -1,6 +1,6 @@
 # riscv64imac 无浮点，避免 compiler_builtins ABI 冲突（与 hello_drv/rust_ffi 一致）
 
-# 重编 core：Rust 源码对 riscv 等目标会为 compiler_builtins 启用 no-f16-f128，可减 f128 等体积
+# 重编 core/alloc：仅 core 时，工具链预编译的 alloc 会拉入另一份 core，导致 duplicate lang item。
 # 需先安装：rustup component add rust-src
 [unstable]
-build-std = ["core"]
+build-std = ["core", "alloc"]

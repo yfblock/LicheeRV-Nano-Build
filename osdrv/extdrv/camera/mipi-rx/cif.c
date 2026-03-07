@@ -13,6 +13,7 @@
 #include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/cvi_defines.h>
+#include "linux/printk.h"
 #include "pinctrl-mars.h"
 #include <linux/ctype.h>
 #include <linux/version.h>
@@ -24,6 +25,7 @@
 #include <vip_common.h>
 #include <base_cb.h>
 #include <cif_cb.h>
+#include "../rust_kernel.h"
 
 /* 仅保留 MIPI RX 接口，关闭其他输入模式相关代码（DVP/BT/SUBLVDS/HISPI 等） */
 #define MIPI_IF
@@ -500,6 +502,7 @@ static int cif_reset_snsr_gpio(struct cvi_cif_dev *dev,
 
 	if (!gpio_is_valid(link->snsr_rst_pin))
 		return 0;
+	pr_info("--- set snsr_rst_pin lvl: %d, reset: %d", on, reset);
 	if (on)
 		gpio_direction_output(link->snsr_rst_pin, reset);
 	else
@@ -520,7 +523,15 @@ static long _cif_ioctl(struct cvi_cif_dev *dev, unsigned int cmd,
 		dev_err(_dev, "null pointer\n");
 		return -EINVAL;
 	}
-
+	// switch (cmd) {
+	// case CVI_MIPI_RESET_SENSOR:
+	// // case CVI_MIPI_UNRESET_SENSOR:
+	// // case CVI_MIPI_ENABLE_SENSOR_CLOCK:
+	// 	pr_info("==== Pass ioctl call from rust\n");
+	// 	return 0;
+	// default:
+	// 	break;
+	// }
 	switch (cmd) {
 	case CVI_MIPI_SET_DEV_ATTR:
 	{
@@ -554,7 +565,8 @@ static long _cif_ioctl(struct cvi_cif_dev *dev, unsigned int cmd,
 			}
 		} else
 			devno = *(uint32_t *)arg;
-		return cif_reset_snsr_gpio(dev, devno, 1);
+		// return cif_reset_snsr_gpio(dev, devno, 1);
+		return mipi_init_gpio();
 	case CVI_MIPI_UNRESET_SENSOR:
 		if (from_user) {
 			if (copy_from_user(&devno, (void *)arg, sizeof(devno))) {
@@ -654,6 +666,8 @@ static int cif_init_miscdev(struct platform_device *pdev, struct cvi_cif_dev *de
 
 		ctx->mac_phys_regs = cif_get_mac_phys_reg_bases(i);
 		ctx->wrap_phys_regs = cif_get_wrap_phys_reg_bases(i);
+		pr_info("---- ctx->mac_phys_regs  = 0x%08x\n", (u32)(uintptr_t)ctx->mac_phys_regs);
+		pr_info("---- ctx->wrap_phys_regs = 0x%08x\n", (u32)(uintptr_t)ctx->wrap_phys_regs);
 	}
 
 	/* register cif_cb */
@@ -715,6 +729,7 @@ static int _init_resource(struct platform_device *pdev)
 	int i;
 	struct cvi_link *link;
 
+	pr_info("-------------------------------- init_resource -------------------------------- ");
 	dev = dev_get_drvdata(&pdev->dev);
 	if (!dev) {
 		dev_err(&pdev->dev, "Can not get cvi_cif drvdata\n");
@@ -744,6 +759,7 @@ static int _init_resource(struct platform_device *pdev)
 		res = platform_get_resource(pdev, IORESOURCE_MEM, i);
 		if (!res)
 			break;
+		pr_info("res->start: 0x%llx, res->end: 0x%llx\n", res->start, res->end);
 #if (KERNEL_VERSION(5, 10, 0) <= LINUX_VERSION_CODE)
 		reg_base[i] = devm_ioremap(&pdev->dev, res->start, res->end - res->start);
 #else
@@ -761,20 +777,9 @@ static int _init_resource(struct platform_device *pdev)
 		cif_set_base_addr(1, reg_base[2], reg_base[1]);
 	if (i > 3)
 		cif_set_base_addr(2, reg_base[3], reg_base[1]);
+	pr_info("-------- i number: %d\n", i);
 	/* init pad_ctrl. */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, i);
-	if (!res) {
-		dev_info(&pdev->dev, "no pad_ctrl for cif\n");
-	} else {
-#if (KERNEL_VERSION(5, 10, 0) <= LINUX_VERSION_CODE)
-		dev->pad_ctrl = devm_ioremap(&pdev->dev, res->start, res->end - res->start);
-#else
-		dev->pad_ctrl = devm_ioremap_nocache(&pdev->dev, res->start, res->end - res->start);
-#endif
-		dev_info(&pdev->dev,
-			 "pad-ctrl res-reg: start: 0x%llx, end: 0x%llx.",
-			 res->start, res->end);
-	}
 
 	/* Init max mac clock. */
 	if (max_mac_clk <= 400)
@@ -784,11 +789,16 @@ static int _init_resource(struct platform_device *pdev)
 	else
 		dev->max_mac_clk = 594;
 
+	pr_info("reg_base[0]: %p, reg_base[1]: %p, reg_base[2]: %p, reg_base[3]: %p\n", reg_base[0], reg_base[1], reg_base[2], reg_base[3]);
+
+	mipi_init();
+
 	/* Interrupt */
 	for (i = 0; i < CIF_MAX_CSI_NUM; ++i) {
 		link = &dev->link[i];
 
 		link->irq_num = platform_get_irq(pdev, i);
+		pr_info("link->irq_num = %d\n", link->irq_num);
 		if (link->irq_num < 0)
 			break;
 		if (devm_request_irq(&pdev->dev, link->irq_num, cif_isr, IRQF_SHARED, irq_name[i], link))
@@ -810,8 +820,10 @@ static int _init_resource(struct platform_device *pdev)
 		if (link->snsr_rst_pin < 0)
 			break;
 
-		if (gpio_request(link->snsr_rst_pin, "snsr-rst-gpio"))
+		if (gpio_request(link->snsr_rst_pin, "snsr-rst-gpio")) {
+			pr_info("gpio_request successed!");
 			return 0;
+		}
 
 		dev_info(&pdev->dev, "rst_pin = %d, pol = %d\n",
 			link->snsr_rst_pin, link->snsr_rst_pol);

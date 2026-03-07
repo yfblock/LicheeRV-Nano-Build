@@ -1,0 +1,4 @@
+# clangd 用 compile_commands.json 解析时，会带上内核的 GCC 参数；
+# -mno-ldd 等为 RISC-V GCC 专有，Clang 不认识，需移除以免报 drv_unknown_argument。
+CompileFlags:
+  Remove: [-mno-ldd, -mno-save-restore, -fno-allow-store-data-races, -fconserve-stack]

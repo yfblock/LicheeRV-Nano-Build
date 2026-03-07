@@ -8,22 +8,19 @@
 #include <linux/types.h>
 
 #include <vi_core.h>
+#include "rust_kernel.h"
 
-/* CIF 的 init/exit 在 mipi-rx/chip/mars/cif.c 中实现 */
+/* CIF 的 init/exit 在 mipi-rx/cif.c 中实现 */
 extern int cvi_cif_init(void);
 extern void cvi_cif_exit(void);
-
-/* Rust FFI：sg200x-vi 静态库导出（见 sg200x-vi/src/lib.rs），必须参与链接 */
-extern u64 sg200x_vi_add(u64 a, u64 b);
-extern u32 sg200x_vi_version(void);
 
 static int __init camera_init(void)
 {
 	int r;
 
-	pr_info("camera: sg200x_vi version 0x%08x, 1+2=%llu\n",
-		(unsigned int)sg200x_vi_version(),
-		(unsigned long long)sg200x_vi_add(1, 2));
+	sg200x_vi_log_init();
+	pr_info("camera: sg200x_vi version 0x%08x\n",
+		(unsigned int)sg200x_vi_version());
 
 	r = vi_core_register();
 	if (r)

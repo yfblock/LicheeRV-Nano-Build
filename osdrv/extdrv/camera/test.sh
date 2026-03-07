@@ -12,7 +12,7 @@
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BUILD_DIR="${SCRIPT_DIR}/build"
+BUILD_DIR="${SCRIPT_DIR}"
 KO_NAME="camera.ko"
 DEVICE_KO_PATH="/root/camera.ko"
 SENSOR_TEST="/root/sensor_test"
