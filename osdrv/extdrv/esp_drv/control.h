@@ -1,0 +1,1 @@
+../../../../esp32-cam-firmware/include/control.h

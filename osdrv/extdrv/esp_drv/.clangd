@@ -1,0 +1,6 @@
+# 让 clangd 忽略 GCC 专用选项，消除 Unknown argument 诊断
+CompileFlags:
+  Remove:
+    - -mno-ldd
+    - -fno-allow-store-data-races
+    - -fconserve-stack
